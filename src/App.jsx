@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Users, Wallet, Plane, FolderClosed, CalendarDays, Settings,
   Search, Plus, Cake, Gift, Clock, Receipt, BadgeCheck, FileText, Megaphone,
   PartyPopper, ArrowLeft, Briefcase, UserCheck, AlertTriangle,
+  LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
 } from "lucide-react";
 
 /* ---------- tokens ---------- */
@@ -38,6 +39,34 @@ const idade = (nasc) => {
 };
 const mesDia = (nasc) => (nasc ? nasc.slice(5) : "");
 const primeiro = (n) => n.split(" ")[0];
+const dmy = (s) => { if (!s) return ""; const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; };
+
+/* ---------- tipos de evento (linha do tempo) ---------- */
+const EVENTOS = {
+  admissao:           { label: "Admissão",            icon: LogIn,          cor: "#1D9E75" },
+  alteracao_salarial: { label: "Alteração salarial",  icon: TrendingUp,     cor: "#378ADD" },
+  promocao:           { label: "Promoção",            icon: Award,          cor: "#7F77DD" },
+  mudanca_setor:      { label: "Mudança de setor",    icon: ArrowRightLeft, cor: "#D4537E" },
+  ferias:             { label: "Férias",              icon: Plane,          cor: "#378ADD" },
+  advertencia:        { label: "Advertência",         icon: AlertTriangle,  cor: "#BA7517" },
+  desligamento:       { label: "Desligamento",        icon: LogOut,         cor: "#A83226" },
+};
+const TIPOS_MANUAIS = ["advertencia", "ferias", "promocao", "mudanca_setor", "alteracao_salarial"];
+
+const seedEventos = [
+  { id: "e1", colaboradorId: "c1", tipo: "admissao", data: "2024-02-10", descricao: "Admitido como Gestor de Tráfego" },
+  { id: "e2", colaboradorId: "c1", tipo: "alteracao_salarial", data: "2024-08-01", descricao: "Salário de R$ 4.000,00 para R$ 4.500,00" },
+  { id: "e3", colaboradorId: "c1", tipo: "ferias", data: "2025-07-15", descricao: "Férias (15 dias)" },
+  { id: "e4", colaboradorId: "c2", tipo: "admissao", data: "2023-08-15", descricao: "Admitida como Copywriter" },
+  { id: "e5", colaboradorId: "c2", tipo: "promocao", data: "2025-01-10", descricao: "Promovida a Copywriter Sênior" },
+  { id: "e6", colaboradorId: "c4", tipo: "admissao", data: "2022-05-03", descricao: "Admitida no setor de Gestão" },
+  { id: "e7", colaboradorId: "c4", tipo: "mudanca_setor", data: "2024-03-01", descricao: "Setor de Gestão para RH" },
+  { id: "e8", colaboradorId: "c5", tipo: "admissao", data: "2021-03-01", descricao: "Admitido como Especialista em Funil" },
+  { id: "e9", colaboradorId: "c5", tipo: "advertencia", data: "2026-02-10", descricao: "Advertência verbal por atraso recorrente" },
+  { id: "e10", colaboradorId: "c5", tipo: "desligamento", data: "2026-05-20", descricao: "Desligado a pedido" },
+  { id: "e11", colaboradorId: "c3", tipo: "admissao", data: "2025-01-20", descricao: "Início da prestação (PJ)" },
+  { id: "e12", colaboradorId: "c6", tipo: "admissao", data: "2024-11-11", descricao: "Início da prestação (PJ)" },
+];
 
 /* ---------- UI base ---------- */
 function Card({ children, style }) {
@@ -209,7 +238,7 @@ function Lista({ colaboradores, onNovo, onAbrir }) {
 }
 
 /* ---------- Formulário de cadastro ---------- */
-function Cadastro({ inicial, onSalvar, onVoltar }) {
+function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
   const [f, setF] = useState(inicial || {
     tipo: "colaborador", status: "ativo", nome: "", cpf: "", cnpj: "", nomeCnpj: "", nascimento: "",
     telefone: "", email: "", endereco: "", pix: "", banco: "", agencia: "", conta: "", tipoConta: "Corrente",
@@ -233,16 +262,20 @@ function Cadastro({ inicial, onSalvar, onVoltar }) {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <button className="btn" onClick={onVoltar} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: SANS, padding: 0, marginBottom: 14 }}>
-        <ArrowLeft size={15} /> Voltar
-      </button>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-        <Avatar nome={f.nome || "N N"} size={52} />
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{inicial ? f.nome : "Novo colaborador"}</h1>
-          <div style={{ fontSize: 13, color: C.muted }}>{idade(f.nascimento) !== "" ? `${idade(f.nascimento)} anos` : "cadastro"}</div>
-        </div>
-      </div>
+      {!embed && (
+        <>
+          <button className="btn" onClick={onVoltar} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: SANS, padding: 0, marginBottom: 14 }}>
+            <ArrowLeft size={15} /> Voltar
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+            <Avatar nome={f.nome || "N N"} size={52} />
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{inicial ? f.nome : "Novo colaborador"}</h1>
+              <div style={{ fontSize: 13, color: C.muted }}>{idade(f.nascimento) !== "" ? `${idade(f.nascimento)} anos` : "cadastro"}</div>
+            </div>
+          </div>
+        </>
+      )}
 
       <Card style={{ padding: 22, marginBottom: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 16px" }}>Dados pessoais</h2>
@@ -319,6 +352,88 @@ function Cadastro({ inicial, onSalvar, onVoltar }) {
   );
 }
 
+/* ---------- Ficha do colaborador (Histórico + Dados) ---------- */
+function Ficha({ colaborador: c, eventos, onSalvar, onAddEvento, onVoltar }) {
+  const [tab, setTab] = useState("historico");
+  const [add, setAdd] = useState(false);
+  const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
+  const ordenados = [...eventos].sort((a, b) => b.data.localeCompare(a.data));
+
+  const TabBtn = ({ id, label }) => (
+    <button className="btn" onClick={() => setTab(id)}
+      style={{ background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.blurple : "transparent"}`,
+        color: tab === id ? C.ink : C.muted, fontSize: 14, fontWeight: 500, padding: "8px 2px", cursor: "pointer", fontFamily: SANS }}>{label}</button>
+  );
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <button className="btn" onClick={onVoltar} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: SANS, padding: 0, marginBottom: 14 }}>
+        <ArrowLeft size={15} /> Voltar
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+        <Avatar nome={c.nome} size={52} />
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{c.nome}</h1>
+          <div style={{ fontSize: 13, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
+        </div>
+        <StatusPill status={c.status} />
+      </div>
+
+      <div style={{ display: "flex", gap: 22, borderBottom: `1px solid ${C.border}`, marginBottom: 18 }}>
+        <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
+        <TabBtn id="dados" label="Dados" />
+      </div>
+
+      {tab === "historico" ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <Btn variant="ghost" onClick={() => setAdd(!add)}><Plus size={15} /> Adicionar evento</Btn>
+          </div>
+          {add && (
+            <Card style={{ padding: 16, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="g2">
+                <Field label="Tipo">
+                  <select className="inp" value={ev.tipo} onChange={(e) => setEv({ ...ev, tipo: e.target.value })}>
+                    {TIPOS_MANUAIS.map((t) => <option key={t} value={t}>{EVENTOS[t].label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Data"><input className="inp" type="date" value={ev.data} onChange={(e) => setEv({ ...ev, data: e.target.value })} /></Field>
+                <Field label="Descrição" span><input className="inp" value={ev.descricao} onChange={(e) => setEv({ ...ev, descricao: e.target.value })} placeholder="O que aconteceu" /></Field>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <Btn disabled={!ev.descricao.trim()} onClick={() => { onAddEvento(c.id, ev); setEv({ tipo: "advertencia", data: HOJE, descricao: "" }); setAdd(false); }}>Registrar</Btn>
+              </div>
+            </Card>
+          )}
+          <Card style={{ padding: 20 }}>
+            {ordenados.length === 0 && <div style={{ fontSize: 13.5, color: C.muted }}>Sem eventos ainda.</div>}
+            {ordenados.map((e, i) => {
+              const cfg = EVENTOS[e.tipo] || EVENTOS.advertencia; const Icon = cfg.icon;
+              return (
+                <div key={e.id} style={{ display: "flex", gap: 12 }}>
+                  <div style={{ position: "relative", width: 28, flexShrink: 0 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: cfg.cor + "1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon size={15} color={cfg.cor} />
+                    </div>
+                    {i < ordenados.length - 1 && <div style={{ position: "absolute", left: 13, top: 28, bottom: -6, width: 2, background: C.border }} />}
+                  </div>
+                  <div style={{ paddingBottom: 18, flex: 1 }}>
+                    <div style={{ fontSize: 12, color: C.faint, fontFamily: MONO }}>{dmy(e.data)}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{cfg.label}</div>
+                    <div style={{ fontSize: 13, color: C.muted }}>{e.descricao}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </>
+      ) : (
+        <Cadastro inicial={c} embed onSalvar={(d) => { onSalvar(d); setTab("historico"); }} onVoltar={() => setTab("historico")} />
+      )}
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -338,13 +453,41 @@ function EmBreve({ titulo, fase, feito }) {
 /* ---------- Shell / App ---------- */
 export default function App() {
   const [colaboradores, setColaboradores] = useState(seed);
+  const [eventos, setEventos] = useState(seedEventos);
   const [modulo, setModulo] = useState("dashboard");
-  const [editando, setEditando] = useState(null); // colaborador | "novo" | null
+  const [novo, setNovo] = useState(false);
+  const [detalheId, setDetalheId] = useState(null);
 
-  function salvar(dados) {
-    if (dados.id) setColaboradores((cs) => cs.map((c) => (c.id === dados.id ? dados : c)));
-    else setColaboradores((cs) => [{ ...dados, id: "c" + Date.now() }, ...cs]);
-    setEditando(null);
+  const mkEvento = (colaboradorId, tipo, data, descricao) =>
+    ({ id: "e" + Math.random().toString(36).slice(2, 8), colaboradorId, tipo, data, descricao });
+
+  // criar novo colaborador (gera evento de admissão)
+  function criar(dados) {
+    const id = "c" + Date.now();
+    setColaboradores((cs) => [{ ...dados, id }, ...cs]);
+    setEventos((es) => [mkEvento(id, "admissao", dados.admissao || HOJE, `Admitido como ${dados.cargo || "colaborador"}`), ...es]);
+    setNovo(false);
+    setDetalheId(id);
+  }
+
+  // editar colaborador existente (gera eventos automáticos pelas mudanças)
+  function editar(dados) {
+    const antigo = colaboradores.find((c) => c.id === dados.id);
+    const novos = [];
+    if (antigo && antigo.salario !== dados.salario)
+      novos.push(mkEvento(dados.id, "alteracao_salarial", HOJE, `Salário de ${brl(antigo.salario)} para ${brl(dados.salario)}`));
+    if (antigo && antigo.setor !== dados.setor && dados.setor)
+      novos.push(mkEvento(dados.id, "mudanca_setor", HOJE, `Setor de ${antigo.setor || "—"} para ${dados.setor}`));
+    if (antigo && antigo.cargo !== dados.cargo && dados.cargo)
+      novos.push(mkEvento(dados.id, "promocao", HOJE, `Cargo alterado para ${dados.cargo}`));
+    if (antigo && antigo.status !== dados.status && dados.status === "desligado")
+      novos.push(mkEvento(dados.id, "desligamento", HOJE, "Colaborador desligado"));
+    setColaboradores((cs) => cs.map((c) => (c.id === dados.id ? dados : c)));
+    if (novos.length) setEventos((es) => [...novos, ...es]);
+  }
+
+  function addEvento(colaboradorId, e) {
+    setEventos((es) => [mkEvento(colaboradorId, e.tipo, e.data || HOJE, e.descricao), ...es]);
   }
 
   const nav = [
@@ -357,12 +500,15 @@ export default function App() {
     { id: "config", label: "Configurações", icon: Settings },
   ];
 
+  const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
+
   let conteudo;
   if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} />;
-  else if (modulo === "colaboradores")
-    conteudo = editando
-      ? <Cadastro inicial={editando === "novo" ? null : editando} onSalvar={salvar} onVoltar={() => setEditando(null)} />
-      : <Lista colaboradores={colaboradores} onNovo={() => setEditando("novo")} onAbrir={(c) => setEditando(c)} />;
+  else if (modulo === "colaboradores") {
+    if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
+    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onVoltar={() => setDetalheId(null)} />;
+    else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
+  }
   else if (modulo === "financeiro") conteudo = <EmBreve titulo="Financeiro" feito />;
   else if (modulo === "ferias") conteudo = <EmBreve titulo="Controle de férias" fase="Fase 3" />;
   else if (modulo === "documentos") conteudo = <EmBreve titulo="Controle de documentos" fase="Fase 2" />;
@@ -403,7 +549,7 @@ export default function App() {
             {nav.map((n) => {
               const Icon = n.icon; const on = modulo === n.id;
               return (
-                <button key={n.id} className="xmx-nav btn" onClick={() => { setModulo(n.id); setEditando(null); }}
+                <button key={n.id} className="xmx-nav btn" onClick={() => { setModulo(n.id); setNovo(false); setDetalheId(null); }}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
                     border: "none", borderRadius: 9, padding: "9px 10px", marginBottom: 2, fontFamily: SANS, fontSize: 13.5, fontWeight: 500,
                     background: on ? "#EDECFB" : "transparent", color: on ? C.blurple : C.ink }}>
