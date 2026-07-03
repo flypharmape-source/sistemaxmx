@@ -320,12 +320,13 @@ export function ChecklistsTab({ colaborador, checks, onToggle }) {
 
 
 export function NotasTab({ colaborador, notas, competenciaAberta, podeEnviar, onEnviar, onReenviar, onVer }) {
-  const [nf, setNf] = useState({ numero: "", valor: "", descricao: "", arquivo: "" });
+  const [nf, setNf] = useState({ descricao: "", arquivo: "" });
   const mesRef = (s) => { if (!s) return ""; const [y, m] = s.split("-"); return `${m}/${y}`; };
   const ordenadas = [...notas].sort((a, b) => (b.enviadaEm || "").localeCompare(a.enviadaEm || ""));
   const jaEnviou = competenciaAberta && notas.some((n) => n.competencia === competenciaAberta && n.status !== "rejeitada");
   const mostrarForm = competenciaAberta && podeEnviar && !jaEnviou;
-  const nfOk = nf.valor && !isNaN(parseFloat(nf.valor)) && nf.arquivo;
+  const valorNota = colaborador.salario || 0;
+  const nfOk = !!nf.arquivo;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -337,18 +338,23 @@ export function NotasTab({ colaborador, notas, competenciaAberta, podeEnviar, on
 
       {mostrarForm && (
         <Card style={{ padding: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Enviar nota — {mesRef(competenciaAberta)}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Enviar nota — {mesRef(competenciaAberta)}</div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>O valor é o do seu salário cadastrado e não pode ser editado aqui.</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="g2">
-            <Field label="Nº da nota"><input className="inp" value={nf.numero} onChange={(e) => setNf({ ...nf, numero: e.target.value })} placeholder="ex: 000123" /></Field>
-            <Field label="Valor (R$)"><input className="inp" value={nf.valor} inputMode="decimal" onChange={(e) => setNf({ ...nf, valor: e.target.value.replace(",", ".") })} placeholder="0,00" /></Field>
-            <Field label="Descrição do serviço" span><input className="inp" value={nf.descricao} onChange={(e) => setNf({ ...nf, descricao: e.target.value })} placeholder="ex: gestão de tráfego" /></Field>
+            <Field label="Valor da nota">
+              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, color: "#256B3B", background: "#E3F2E6", border: `1px solid #BFE0C6`, borderRadius: 9, padding: "9px 12px" }}>{brl(valorNota)}</div>
+            </Field>
+            <Field label="Competência">
+              <div style={{ fontFamily: MONO, fontSize: 14, color: C.ink, background: "#F1F0EC", border: `1px solid ${C.border}`, borderRadius: 9, padding: "10px 12px" }}>{mesRef(competenciaAberta)}</div>
+            </Field>
+            <Field label="Descrição do serviço (opcional)" span><input className="inp" value={nf.descricao} onChange={(e) => setNf({ ...nf, descricao: e.target.value })} placeholder="ex: gestão de tráfego" /></Field>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
             <label className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${C.borderStrong}`, background: "#fff", borderRadius: 9, padding: "8px 12px", cursor: "pointer", fontSize: 13, color: C.ink }}>
               <Paperclip size={14} /> {nf.arquivo || "Anexar PDF"}
               <input type="file" style={{ display: "none" }} onChange={(e) => { const n = e.target.files[0]?.name; if (n) setNf({ ...nf, arquivo: n }); }} />
             </label>
-            <Btn disabled={!nfOk} onClick={() => { onEnviar(colaborador.id, { numero: nf.numero, valor: parseFloat(nf.valor), competencia: competenciaAberta, descricao: nf.descricao, arquivo: nf.arquivo }); setNf({ numero: "", valor: "", descricao: "", arquivo: "" }); }}>Enviar para análise</Btn>
+            <Btn disabled={!nfOk} onClick={() => { onEnviar(colaborador.id, { valor: valorNota, competencia: competenciaAberta, descricao: nf.descricao, arquivo: nf.arquivo }); setNf({ descricao: "", arquivo: "" }); }}>Enviar para análise</Btn>
           </div>
         </Card>
       )}
