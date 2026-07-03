@@ -340,8 +340,7 @@ function StatusPill({ status }) {
 
 /* ---------- Dashboard ---------- */
 function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, documentos = [] }) {
-  const ativos = colaboradores.filter((c) => c.tipo === "colaborador" && c.status === "ativo").length;
-  const prestadores = colaboradores.filter((c) => c.tipo === "prestador" && c.status === "ativo").length;
+  const ativos = colaboradores.filter((c) => c.status === "ativo").length;
   const aniMes = colaboradores.filter((c) => mesDia(c.nascimento).slice(0, 2) === "07");
   const aniSemana = colaboradores.filter((c) => {
     const md = mesDia(c.nascimento);
@@ -361,7 +360,6 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, do
 
   const cards = [
     { icon: Users, v: ativos, l: "Colaboradores ativos", c: "#5865F2" },
-    { icon: Briefcase, v: prestadores, l: "Prestadores ativos", c: "#1D9E75" },
     { icon: Cake, v: aniSemana.length, l: "Aniversariantes da semana", c: "#D85A30" },
     { icon: Gift, v: aniMes.length, l: "Aniversariantes do mês", c: "#D4537E" },
     { icon: Plane, v: proximasFerias, l: "Próximas férias", c: "#378ADD" },
@@ -479,7 +477,7 @@ function Lista({ colaboradores, onNovo, onAbrir, mostrarSalario = true, podeNovo
               <Avatar nome={c.nome} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 500 }}>{c.nome}</div>
-                <div style={{ fontSize: 12.5, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
+                <div style={{ fontSize: 12.5, color: C.muted }}>{c.cargo} · {c.setor}</div>
               </div>
             </div>
             {aba === "ativos"
@@ -570,9 +568,6 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed, verSensivel = true, pode
       <Card style={{ padding: 22, marginBottom: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 16px" }}>Dados profissionais</h2>
         <div style={grid} className="g2">
-          <Field label="Tipo">
-            <select className={inp} value={f.tipo} onChange={(e) => set("tipo", e.target.value)}><option value="colaborador">Colaborador</option><option value="prestador">Prestador (PJ)</option></select>
-          </Field>
           <Field label="Data de admissão"><input className={inp} type="date" value={f.admissao} onChange={(e) => set("admissao", e.target.value)} /></Field>
           <Field label="Setor">
             <select className={inp} value={f.setor} onChange={(e) => set("setor", e.target.value)}><option value="">Selecionar…</option>{SETORES.map((s) => <option key={s}>{s}</option>)}</select>
@@ -659,7 +654,7 @@ function Ficha({ colaborador: c, eventos, documentos, ferias, checks, podeEditar
         <Avatar nome={c.nome} size={52} />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{c.nome}</h1>
-          <div style={{ fontSize: 13, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
+          <div style={{ fontSize: 13, color: C.muted }}>{c.cargo} · {c.setor}</div>
         </div>
         <StatusPill status={c.status} />
         {c.status === "ativo" && podeEditar && (
@@ -1197,7 +1192,7 @@ function FeriasGlobal({ colaboradores, ferias, onAbrir }) {
                 <Avatar nome={c.nome} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 500 }}>{c.nome}</div>
-                  <div style={{ fontSize: 12.5, color: C.muted }}>{c.setor}{c.tipo === "prestador" ? " · PJ" : ""} · limite {dmy(info.concLimite)}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted }}>{c.setor} · limite {dmy(info.concLimite)}</div>
                 </div>
               </div>
               <div style={{ fontFamily: MONO, fontSize: 13.5 }}>{info.saldo} dias</div>
@@ -1721,6 +1716,7 @@ export default function App() {
 
   if (!usuario) return <Login contas={contas} onLogin={login} />;
   const perfil = usuario;
+  const totalLembretes = gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos }).length;
 
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
   const visiveis = escopoColaboradores(colaboradores, perfil);
@@ -1789,7 +1785,10 @@ export default function App() {
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
                     border: "none", borderRadius: 9, padding: "9px 10px", marginBottom: 2, fontFamily: SANS, fontSize: 13.5, fontWeight: 500,
                     background: on ? "#EDECFB" : "transparent", color: on ? C.blurple : C.ink }}>
-                  <Icon size={17} /> {label}
+                  <Icon size={17} /> <span style={{ flex: 1 }}>{label}</span>
+                  {n.id === "lembretes" && totalLembretes > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#fff", background: "#D85A30", minWidth: 18, height: 18, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{totalLembretes}</span>
+                  )}
                 </button>
               );
             })}
