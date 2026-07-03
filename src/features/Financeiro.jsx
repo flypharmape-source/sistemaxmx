@@ -78,12 +78,13 @@ export function NotaViewer({ nota, emitente, onClose }) {
 }
 
 
-export function Financeiro({ colaboradores, pagamentos, notas, onRegistrar, onNovoPagamento, onNotaStatus, onVerNota }) {
+export function Financeiro({ colaboradores, pagamentos, notas, competenciaAberta = "", onAbrirCompetencia = () => {}, onRegistrar, onNovoPagamento, onNotaStatus, onVerNota }) {
   const [tab, setTab] = useState("pagamentos");
   const [fPag, setFPag] = useState("Todos");
   const [fNota, setFNota] = useState("Todos");
   const [add, setAdd] = useState(false);
   const [np, setNp] = useState({ colaboradorId: "", competencia: "", valor: "", forma: "PIX", obs: "" });
+  const [comp, setComp] = useState(competenciaAberta || "");
   const mesRef = (s) => { if (!s) return ""; const [y, m] = s.split("-"); return `${m}/${y}`; };
   const nomeDe = (id) => (colaboradores.find((c) => c.id === id) || {}).nome || "—";
 
@@ -112,6 +113,22 @@ export function Financeiro({ colaboradores, pagamentos, notas, onRegistrar, onNo
     <div style={{ maxWidth: 780 }}>
       <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Financeiro</h1>
       <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 18px" }}>Pagamentos e notas fiscais, ligados a cada colaborador.</p>
+
+      <Card style={{ padding: "14px 16px", marginBottom: 18, background: competenciaAberta ? "#E3F2E6" : "#FAFAF8", borderColor: competenciaAberta ? "#BFE0C6" : C.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 240px" }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Competência aberta para envio de notas</div>
+            <div style={{ fontSize: 12.5, color: C.muted }}>
+              {competenciaAberta
+                ? <>Colaboradores podem enviar a nota de <b style={{ fontFamily: MONO, color: "#256B3B" }}>{mesRef(competenciaAberta)}</b>.</>
+                : "Nenhuma competência aberta. Os colaboradores só veem as notas anteriores."}
+            </div>
+          </div>
+          <input style={sel} type="month" value={comp} onChange={(e) => setComp(e.target.value)} />
+          <Btn onClick={() => onAbrirCompetencia(comp)} disabled={!comp}>Abrir</Btn>
+          {competenciaAberta && <Btn variant="ghost" onClick={() => { onAbrirCompetencia(""); }}>Fechar</Btn>}
+        </div>
+      </Card>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         <Stat label="A pagar" value={brl(aPagar)} />

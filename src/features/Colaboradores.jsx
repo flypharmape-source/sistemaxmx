@@ -319,7 +319,65 @@ export function ChecklistsTab({ colaborador, checks, onToggle }) {
 }
 
 
-export function Ficha({ colaborador: c, eventos, documentos, ferias, checks, podeEditar = true, verSensivel = true, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onToggleCheck, onVoltar }) {
+export function NotasTab({ colaborador, notas, competenciaAberta, podeEnviar, onEnviar, onReenviar, onVer }) {
+  const [nf, setNf] = useState({ numero: "", valor: "", descricao: "", arquivo: "" });
+  const mesRef = (s) => { if (!s) return ""; const [y, m] = s.split("-"); return `${m}/${y}`; };
+  const ordenadas = [...notas].sort((a, b) => (b.enviadaEm || "").localeCompare(a.enviadaEm || ""));
+  const jaEnviou = competenciaAberta && notas.some((n) => n.competencia === competenciaAberta && n.status !== "rejeitada");
+  const mostrarForm = competenciaAberta && podeEnviar && !jaEnviou;
+  const nfOk = nf.valor && !isNaN(parseFloat(nf.valor)) && nf.arquivo;
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {competenciaAberta
+        ? <Card style={{ padding: "12px 16px", background: "#E3F2E6", borderColor: "#BFE0C6", fontSize: 13, color: "#256B3B" }}>
+            Competência <b style={{ fontFamily: MONO }}>{mesRef(competenciaAberta)}</b> aberta para envio de nota fiscal.
+          </Card>
+        : <Card style={{ padding: "12px 16px", fontSize: 13, color: C.muted }}>Nenhuma competência aberta no momento. Você verá aqui suas notas já enviadas.</Card>}
+
+      {mostrarForm && (
+        <Card style={{ padding: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Enviar nota — {mesRef(competenciaAberta)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="g2">
+            <Field label="Nº da nota"><input className="inp" value={nf.numero} onChange={(e) => setNf({ ...nf, numero: e.target.value })} placeholder="ex: 000123" /></Field>
+            <Field label="Valor (R$)"><input className="inp" value={nf.valor} inputMode="decimal" onChange={(e) => setNf({ ...nf, valor: e.target.value.replace(",", ".") })} placeholder="0,00" /></Field>
+            <Field label="Descrição do serviço" span><input className="inp" value={nf.descricao} onChange={(e) => setNf({ ...nf, descricao: e.target.value })} placeholder="ex: gestão de tráfego" /></Field>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+            <label className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${C.borderStrong}`, background: "#fff", borderRadius: 9, padding: "8px 12px", cursor: "pointer", fontSize: 13, color: C.ink }}>
+              <Paperclip size={14} /> {nf.arquivo || "Anexar PDF"}
+              <input type="file" style={{ display: "none" }} onChange={(e) => { const n = e.target.files[0]?.name; if (n) setNf({ ...nf, arquivo: n }); }} />
+            </label>
+            <Btn disabled={!nfOk} onClick={() => { onEnviar(colaborador.id, { numero: nf.numero, valor: parseFloat(nf.valor), competencia: competenciaAberta, descricao: nf.descricao, arquivo: nf.arquivo }); setNf({ numero: "", valor: "", descricao: "", arquivo: "" }); }}>Enviar para análise</Btn>
+          </div>
+        </Card>
+      )}
+      {jaEnviou && <Card style={{ padding: "12px 16px", fontSize: 13, color: C.muted }}>Você já enviou a nota desta competência. Acompanhe o status abaixo.</Card>}
+
+      <Card style={{ padding: 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Minhas notas fiscais</div>
+        {ordenadas.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>Nenhuma nota enviada ainda.</div>}
+        {ordenadas.map((n) => {
+          const cfg = STATUS_NOTA[n.status] || STATUS_NOTA.pendente;
+          return (
+            <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>Nota nº {n.numero}</div>
+                <div style={{ fontSize: 12, color: C.faint }}>comp. {mesRef(n.competencia)} · enviada {dmy(n.enviadaEm)}</div>
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 13.5 }}>{brl(n.valor)}</div>
+              <span style={{ background: cfg.bg, color: cfg.ink, fontSize: 12, fontWeight: 500, padding: "3px 10px", borderRadius: 999 }}>{cfg.label}</span>
+              <Btn variant="ghost" onClick={() => onVer(n)}><Eye size={14} /> Ver</Btn>
+              {n.status === "rejeitada" && podeEnviar && <Btn variant="ghost" onClick={() => onReenviar(n.id)}>Reenviar</Btn>}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+export function Ficha({ colaborador: c, eventos, documentos, ferias, checks, notas = [], competenciaAberta = "", podeEnviarNota = false, podeEditar = true, verSensivel = true, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onToggleCheck, onEnviarNota, onReenviarNota, onVerNota, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
@@ -380,6 +438,7 @@ export function Ficha({ colaborador: c, eventos, documentos, ferias, checks, pod
         <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
         <TabBtn id="ferias" label={`Férias (${ferias.saldo})`} />
         <TabBtn id="documentos" label={`Documentos (${documentos.length})`} />
+        <TabBtn id="notas" label={`Notas fiscais (${notas.length})`} />
         <TabBtn id="checklists" label="Checklists" />
         <TabBtn id="dados" label="Dados" />
       </div>
@@ -431,6 +490,8 @@ export function Ficha({ colaborador: c, eventos, documentos, ferias, checks, pod
         <FeriasTab colaborador={c} ferias={ferias} onProgramar={onProgramarFerias} />
       ) : tab === "documentos" ? (
         <DocumentosTab colaborador={c} documentos={documentos} onUpload={onUploadDoc} onAssinar={onAssinarDoc} onVer={onVerDoc} />
+      ) : tab === "notas" ? (
+        <NotasTab colaborador={c} notas={notas} competenciaAberta={competenciaAberta} podeEnviar={podeEnviarNota} onEnviar={onEnviarNota} onReenviar={onReenviarNota} onVer={onVerNota} />
       ) : tab === "checklists" ? (
         <ChecklistsTab colaborador={c} checks={checks} onToggle={onToggleCheck} />
       ) : (
