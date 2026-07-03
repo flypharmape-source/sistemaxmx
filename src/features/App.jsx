@@ -7,10 +7,10 @@ import {
   LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
   FileSignature, FileCheck, Paperclip, Star, Eye, UserX, RotateCcw,
   Coffee, DollarSign, Coins, CalendarClock, CalendarPlus, Bell, Check,
-  BarChart3, Download, Printer, ChevronRight,
+  BarChart3, Download, Printer, ChevronRight, ClipboardList,
 } from "lucide-react";
 import { C, MONO, SANS } from "./theme";
-import { HOJE,SETORES,seed,brl,idade,mesDia,primeiro,dmy,EVENTOS,TIPOS_MANUAIS,seedEventos,EMPRESA,FORMAS,STATUS_PAG,STATUS_NOTA,seedPagamentos,seedNotas,CATEGORIAS,seedDocumentos,addAnos,anosCompletos,diasEntre,STATUS_FERIAS,computeFerias,seedFerias,getFerias,REGRAS,seedFeriados,seedEscala,getRegra,CHECKLIST_ADMISSAO,CHECKLIST_DESLIGAMENTO,seedChecklists,getChecks,seedContas,ROLE_LABEL,NAV_PERM,podeVerSensivel,podeEditarCadastro,escopoColaboradores,MATRIZ_ACESSO,seedComemorativas,LEMBRETE,diasAteAniversario,gerarLembretes } from "./core";
+import { HOJE,SETORES,seed,brl,idade,mesDia,primeiro,dmy,EVENTOS,TIPOS_MANUAIS,seedEventos,EMPRESA,FORMAS,STATUS_PAG,STATUS_NOTA,seedPagamentos,seedNotas,CATEGORIAS,seedDocumentos,addAnos,anosCompletos,diasEntre,STATUS_FERIAS,computeFerias,seedFerias,getFerias,REGRAS,seedFeriados,seedEscala,getRegra,CHECKLIST_ADMISSAO,CHECKLIST_DESLIGAMENTO,seedChecklists,getChecks,seedContas,ROLE_LABEL,NAV_PERM,podeVerSensivel,podeEditarCadastro,escopoColaboradores,MATRIZ_ACESSO,seedComemorativas,LEMBRETE,diasAteAniversario,gerarLembretes,seedPendencias,statusPendencia } from "./core";
 import { Card, Btn, Field, Avatar, StatusPill } from "./ui";
 import { Dashboard } from "./features/Dashboard";
 import { Lista, Cadastro, Ficha } from "./features/Colaboradores";
@@ -18,6 +18,7 @@ import { Financeiro, NotaViewer } from "./features/Financeiro";
 import { FeriasGlobal } from "./features/Ferias";
 import { DocumentosGlobal, DocViewer } from "./features/Documentos";
 import { FeriadosEscala } from "./features/Escala";
+import { Pendencias } from "./features/Pendencias";
 import { Lembretes } from "./features/Lembretes";
 import { Indicadores } from "./features/Indicadores";
 import { ConfigAcessos } from "./features/Config";
@@ -39,8 +40,27 @@ export default function App() {
   const [escala, setEscala] = useState(seedEscala);
   const [checklists, setChecklists] = useState(seedChecklists);
   const [competenciaAberta, setCompetenciaAberta] = useState("2026-07");
+  const [pendencias, setPendencias] = useState(seedPendencias);
+  const [confirmacoes, setConfirmacoes] = useState({});
+  const [mesesFechados, setMesesFechados] = useState([]);
   const [usuario, setUsuario] = useState(null);
   const [contas, setContas] = useState(seedContas);
+
+  function concluirPendencia(p) {
+    setPendencias((ps) => ps.map((x) => (x.id === p.id ? { ...x, status: "concluida", concluidaEm: HOJE } : x)));
+    // ao cadastrar a escala, gera a pendência de confirmação após o período
+    if (p.tipo === "escala_cadastrar") {
+      const d = new Date(p.prazo); d.setDate(d.getDate() + 10);
+      const prazoConf = d.toISOString().slice(0, 10);
+      const nova = { id: "pd" + Date.now(), tipo: "escala_confirmar", titulo: "Confirmar quem trabalhou", sub: p.sub, responsavelId: p.responsavelId, setor: p.setor, refId: p.refId, competencia: p.competencia, prazo: prazoConf, status: "pendente" };
+      setPendencias((ps) => [...ps, nova]);
+    }
+  }
+  function setConfirmacao(pid, cid, valor) {
+    setConfirmacoes((cf) => ({ ...cf, [pid]: { ...(cf[pid] || {}), [cid]: valor } }));
+  }
+  function fecharMes(m) { if (m) setMesesFechados((ms) => (ms.includes(m) ? ms : [...ms, m])); }
+  function reabrirMes(m) { setMesesFechados((ms) => ms.filter((x) => x !== m)); }
 
   function login(email, senha) {
     const c = contas.find((x) => x.email.toLowerCase() === (email || "").trim().toLowerCase() && x.senha === senha);
@@ -160,6 +180,7 @@ export default function App() {
     { id: "ferias", label: "Férias", icon: Plane },
     { id: "documentos", label: "Documentos", icon: FolderClosed },
     { id: "escala", label: "Feriados & Escala", icon: CalendarDays },
+    { id: "pendencias", label: "Minhas pendências", icon: ClipboardList },
     { id: "lembretes", label: "Lembretes", icon: Bell },
     { id: "indicadores", label: "Indicadores", icon: BarChart3 },
     { id: "config", label: "Configurações", icon: Settings },
@@ -167,7 +188,11 @@ export default function App() {
 
   if (!usuario) return <Login contas={contas} onLogin={login} />;
   const perfil = usuario;
-  const totalLembretes = gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos }).length;
+  const minhasPendencias = perfil.role === "gestor"
+    ? pendencias.filter((p) => p.responsavelId === perfil.colaboradorId)
+    : pendencias;
+  const pendenciasAbertas = minhasPendencias.filter((p) => statusPendencia(p) !== "concluida").length;
+  const totalLembretes = gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos, pendencias }).length;
 
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
   const visiveis = escopoColaboradores(colaboradores, perfil);
@@ -190,11 +215,12 @@ export default function App() {
     else if (detalhe) conteudo = <Ficha {...fichaProps(detalhe)} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={visiveis} mostrarSalario={mostrarSalario} podeNovo={podeEditar} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
-  else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} competenciaAberta={competenciaAberta} onAbrirCompetencia={setCompetenciaAberta} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
+  else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} competenciaAberta={competenciaAberta} onAbrirCompetencia={setCompetenciaAberta} mesesFechados={mesesFechados} onFecharMes={fecharMes} onReabrirMes={reabrirMes} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
   else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={visiveis} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
   else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={visiveis} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} verSalario={mostrarSalario} />;
-  else if (modulo === "lembretes") conteudo = <Lembretes lembretes={gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos })} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
+  else if (modulo === "pendencias") conteudo = <Pendencias pendencias={minhasPendencias} colaboradores={colaboradores} confirmacoes={confirmacoes} mesesFechados={mesesFechados} role={perfil.role} onConcluir={concluirPendencia} onSetConfirmacao={setConfirmacao} onNav={(m) => { if (NAV_PERM[m].includes(perfil.role)) { setModulo(m); setNovo(false); setDetalheId(null); } }} />;
+  else if (modulo === "lembretes") conteudo = <Lembretes lembretes={gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos, pendencias })} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
   else if (modulo === "indicadores") conteudo = <Indicadores colaboradores={colaboradores} ferias={ferias} notas={notas} documentos={documentos} onNav={(m) => { setModulo(m); setNovo(false); setDetalheId(null); }} />;
   else conteudo = <ConfigAcessos perfil={perfil} />;
 
@@ -243,6 +269,9 @@ export default function App() {
                   <Icon size={17} /> <span style={{ flex: 1 }}>{label}</span>
                   {n.id === "lembretes" && totalLembretes > 0 && (
                     <span style={{ fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#fff", background: "#D85A30", minWidth: 18, height: 18, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{totalLembretes}</span>
+                  )}
+                  {n.id === "pendencias" && pendenciasAbertas > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 600, fontFamily: MONO, color: "#fff", background: "#A83226", minWidth: 18, height: 18, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{pendenciasAbertas}</span>
                   )}
                 </button>
               );

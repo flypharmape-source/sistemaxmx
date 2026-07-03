@@ -78,13 +78,14 @@ export function NotaViewer({ nota, emitente, onClose }) {
 }
 
 
-export function Financeiro({ colaboradores, pagamentos, notas, competenciaAberta = "", onAbrirCompetencia = () => {}, onRegistrar, onNovoPagamento, onNotaStatus, onVerNota }) {
+export function Financeiro({ colaboradores, pagamentos, notas, competenciaAberta = "", onAbrirCompetencia = () => {}, mesesFechados = [], onFecharMes = () => {}, onReabrirMes = () => {}, onRegistrar, onNovoPagamento, onNotaStatus, onVerNota }) {
   const [tab, setTab] = useState("pagamentos");
   const [fPag, setFPag] = useState("Todos");
   const [fNota, setFNota] = useState("Todos");
   const [add, setAdd] = useState(false);
   const [np, setNp] = useState({ colaboradorId: "", competencia: "", valor: "", forma: "PIX", obs: "" });
   const [comp, setComp] = useState(competenciaAberta || "");
+  const [mesFech, setMesFech] = useState("");
   const mesRef = (s) => { if (!s) return ""; const [y, m] = s.split("-"); return `${m}/${y}`; };
   const nomeDe = (id) => (colaboradores.find((c) => c.id === id) || {}).nome || "—";
 
@@ -128,6 +129,27 @@ export function Financeiro({ colaboradores, pagamentos, notas, competenciaAberta
           <Btn onClick={() => onAbrirCompetencia(comp)} disabled={!comp}>Abrir</Btn>
           {competenciaAberta && <Btn variant="ghost" onClick={() => { onAbrirCompetencia(""); }}>Fechar</Btn>}
         </div>
+      </Card>
+
+      <Card style={{ padding: "14px 16px", marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 240px" }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Fechamento do mês</div>
+            <div style={{ fontSize: 12.5, color: C.muted }}>Fecha a competência para conferência e pagamento. Depois de fechado, as pendências e a escala do mês ficam travadas.</div>
+          </div>
+          <input style={sel} type="month" value={mesFech} onChange={(e) => setMesFech(e.target.value)} />
+          <Btn onClick={() => { onFecharMes(mesFech); setMesFech(""); }} disabled={!mesFech || mesesFechados.includes(mesFech)}>Fechar mês</Btn>
+        </div>
+        {mesesFechados.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            {mesesFechados.map((m) => (
+              <span key={m} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#EFEEE9", border: `1px solid ${C.border}`, borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 12.5 }}>
+                <b style={{ fontFamily: MONO }}>{mesRef(m)}</b> fechado
+                <button className="btn" onClick={() => onReabrirMes(m)} style={{ border: "none", background: "#fff", borderRadius: 999, padding: "2px 9px", fontSize: 11.5, color: C.blurple, cursor: "pointer", fontFamily: SANS }}>Reabrir</button>
+              </span>
+            ))}
+          </div>
+        )}
       </Card>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
