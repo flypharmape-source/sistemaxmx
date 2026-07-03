@@ -205,6 +205,44 @@ const seedChecklists = {
 };
 const getChecks = (checklists, id) => checklists[id] || { admissao: {}, desligamento: {} };
 
+/* ---------- Controle de acessos por perfil ---------- */
+const PERFIS = [
+  { id: "admin", nome: "Ana — Admin", role: "admin" },
+  { id: "financeiro", nome: "Perfil Financeiro", role: "financeiro" },
+  { id: "rh", nome: "Perfil RH", role: "rh" },
+  { id: "gestor", nome: "Gestor · Tráfego", role: "gestor", setor: "Tráfego" },
+  { id: "colaborador", nome: "Beatriz — Colaborador", role: "colaborador", colaboradorId: "c2" },
+];
+const ROLE_LABEL = { admin: "Admin", financeiro: "Financeiro", rh: "RH", gestor: "Gestor", colaborador: "Colaborador" };
+const NAV_PERM = {
+  dashboard: ["admin", "financeiro", "rh", "gestor"],
+  colaboradores: ["admin", "financeiro", "rh", "gestor", "colaborador"],
+  financeiro: ["admin", "financeiro"],
+  ferias: ["admin", "rh", "gestor"],
+  documentos: ["admin", "rh"],
+  escala: ["admin", "rh", "gestor"],
+  lembretes: ["admin", "financeiro", "rh"],
+  indicadores: ["admin", "financeiro", "rh"],
+  config: ["admin"],
+};
+const podeVerSensivel = (role) => ["admin", "financeiro", "rh"].includes(role);
+const podeEditarCadastro = (role) => ["admin", "rh"].includes(role);
+const escopoColaboradores = (colaboradores, perfil) => {
+  if (perfil.role === "gestor") return colaboradores.filter((c) => c.setor === perfil.setor);
+  if (perfil.role === "colaborador") return colaboradores.filter((c) => c.id === perfil.colaboradorId);
+  return colaboradores;
+};
+const MATRIZ_ACESSO = [
+  ["Ver dashboard", { admin: 1, financeiro: 1, rh: 1, gestor: 1, colaborador: 0 }],
+  ["Cadastrar / editar colaborador", { admin: 1, financeiro: 0, rh: 1, gestor: 0, colaborador: 0 }],
+  ["Ver salário e dados bancários", { admin: 1, financeiro: 1, rh: 1, gestor: 0, colaborador: 0 }],
+  ["Gerir férias", { admin: 1, financeiro: 0, rh: 1, gestor: 0, colaborador: 0 }],
+  ["Pagamentos e notas fiscais", { admin: 1, financeiro: 1, rh: 0, gestor: 0, colaborador: 0 }],
+  ["Documentos", { admin: 1, financeiro: 0, rh: 1, gestor: 0, colaborador: 0 }],
+  ["Feriados e escala", { admin: 1, financeiro: 0, rh: 1, gestor: 1, colaborador: 0 }],
+  ["Configurar acessos", { admin: 1, financeiro: 0, rh: 0, gestor: 0, colaborador: 0 }],
+];
+
 /* ---------- Lembretes automáticos: motor ---------- */
 const seedComemorativas = [
   { data: "2026-07-26", nome: "Dia dos Avós" },
@@ -386,7 +424,7 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, do
 }
 
 /* ---------- Lista de colaboradores ---------- */
-function Lista({ colaboradores, onNovo, onAbrir }) {
+function Lista({ colaboradores, onNovo, onAbrir, mostrarSalario = true, podeNovo = true }) {
   const [busca, setBusca] = useState("");
   const [fSetor, setFSetor] = useState("Todos");
   const [aba, setAba] = useState("ativos");
@@ -411,7 +449,7 @@ function Lista({ colaboradores, onNovo, onAbrir }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Colaboradores</h1>
-        {aba === "ativos" && <Btn onClick={onNovo}><Plus size={16} /> Novo colaborador</Btn>}
+        {aba === "ativos" && podeNovo && <Btn onClick={onNovo}><Plus size={16} /> Novo colaborador</Btn>}
       </div>
 
       <div style={{ display: "inline-flex", background: "#EEEDE7", borderRadius: 10, padding: 3, marginBottom: 16 }}>
@@ -445,7 +483,7 @@ function Lista({ colaboradores, onNovo, onAbrir }) {
               </div>
             </div>
             {aba === "ativos"
-              ? <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.ink }}>{brl(c.salario)}</div>
+              ? (mostrarSalario ? <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.ink }}>{brl(c.salario)}</div> : null)
               : <div style={{ fontSize: 12.5, color: C.faint }}>Desligado em {dmy(c.desligadoEm)}</div>}
             <StatusPill status={c.status} />
           </Card>
@@ -456,7 +494,7 @@ function Lista({ colaboradores, onNovo, onAbrir }) {
 }
 
 /* ---------- Formulário de cadastro ---------- */
-function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
+function Cadastro({ inicial, onSalvar, onVoltar, embed, verSensivel = true, podeEditar = true }) {
   const [f, setF] = useState(inicial || {
     tipo: "colaborador", status: "ativo", nome: "", cpf: "", cnpj: "", nomeCnpj: "", nascimento: "",
     telefone: "", email: "", endereco: "", pix: "", banco: "", agencia: "", conta: "", tipoConta: "Corrente",
@@ -513,6 +551,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
           <Field label="Endereço completo" span><input className={inp} value={f.endereco} onChange={(e) => set("endereco", e.target.value)} placeholder="Rua, número - cidade/UF" /></Field>
           <Field label="Discord ID"><input className={inp} value={f.discordId} onChange={(e) => set("discordId", e.target.value)} placeholder="usuario#0000" /></Field>
         </div>
+        {verSensivel && (<>
         <div style={{ height: 1, background: C.border, margin: "18px 0" }} />
         <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 500, marginBottom: 12 }}>Dados bancários</div>
         <div style={grid} className="g2">
@@ -524,6 +563,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
             <select className={inp} value={f.tipoConta} onChange={(e) => set("tipoConta", e.target.value)}><option>Corrente</option><option>Poupança</option></select>
           </Field>
         </div>
+        </>)}
       </Card>
 
       <Card style={{ padding: 22, marginBottom: 16 }}>
@@ -537,7 +577,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
             <select className={inp} value={f.setor} onChange={(e) => set("setor", e.target.value)}><option value="">Selecionar…</option>{SETORES.map((s) => <option key={s}>{s}</option>)}</select>
           </Field>
           <Field label="Cargo / Função"><input className={inp} value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Field>
-          <Field label="Salário atual (R$)"><input className={inp} value={f.salario} inputMode="decimal" onChange={(e) => set("salario", e.target.value.replace(",", "."))} placeholder="0,00" /></Field>
+          {verSensivel && <Field label="Salário atual (R$)"><input className={inp} value={f.salario} inputMode="decimal" onChange={(e) => set("salario", e.target.value.replace(",", "."))} placeholder="0,00" /></Field>}
           <Field label="Status">
             <div style={{ paddingTop: 2 }}><Toggle val={f.status === "ativo"} on="Ativo" off="Desligado" onChange={(v) => set("status", v ? "ativo" : "desligado")} /></div>
           </Field>
@@ -562,16 +602,20 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
         </div>
       </Card>
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <Btn onClick={() => onSalvar({ ...f, salario: parseFloat(f.salario) || 0, qtdFilhos: Number(f.qtdFilhos) || 0 })} disabled={!ok}>Salvar colaborador</Btn>
-        <Btn variant="ghost" onClick={onVoltar}>Cancelar</Btn>
-      </div>
+      {podeEditar ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn onClick={() => onSalvar({ ...f, salario: parseFloat(f.salario) || 0, qtdFilhos: Number(f.qtdFilhos) || 0 })} disabled={!ok}>Salvar colaborador</Btn>
+          <Btn variant="ghost" onClick={onVoltar}>Cancelar</Btn>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12.5, color: C.faint }}>Somente leitura para este perfil.</div>
+      )}
     </div>
   );
 }
 
 /* ---------- Ficha do colaborador (Histórico + Dados + Documentos) ---------- */
-function Ficha({ colaborador: c, eventos, documentos, ferias, checks, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onToggleCheck, onVoltar }) {
+function Ficha({ colaborador: c, eventos, documentos, ferias, checks, podeEditar = true, verSensivel = true, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onToggleCheck, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
@@ -597,7 +641,7 @@ function Ficha({ colaborador: c, eventos, documentos, ferias, checks, onSalvar, 
           <div style={{ fontSize: 13, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
         </div>
         <StatusPill status={c.status} />
-        {c.status === "ativo" && (
+        {c.status === "ativo" && podeEditar && (
           <Btn variant="ghost" onClick={() => setDeslig(!deslig)}><UserX size={15} /> Desligar</Btn>
         )}
       </div>
@@ -686,7 +730,7 @@ function Ficha({ colaborador: c, eventos, documentos, ferias, checks, onSalvar, 
       ) : tab === "checklists" ? (
         <ChecklistsTab colaborador={c} checks={checks} onToggle={onToggleCheck} />
       ) : (
-        <Cadastro inicial={c} embed onSalvar={(d) => { onSalvar(d); setTab("historico"); }} onVoltar={() => setTab("historico")} />
+        <Cadastro inicial={c} embed verSensivel={verSensivel} podeEditar={podeEditar} onSalvar={(d) => { onSalvar(d); setTab("historico"); }} onVoltar={() => setTab("historico")} />
       )}
     </div>
   );
@@ -1410,6 +1454,44 @@ function Indicadores({ colaboradores, ferias, notas, documentos, onNav }) {
   );
 }
 
+/* ---------- Configurações: controle de acessos ---------- */
+function ConfigAcessos({ perfil }) {
+  const roles = ["admin", "financeiro", "rh", "gestor", "colaborador"];
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Controle de acessos por perfil</h1>
+      <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 16px" }}>O que cada perfil pode ver e fazer. Use o seletor "Ver como" no topo para testar cada visão.</p>
+
+      <Card style={{ padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, background: "#EDECFB", borderColor: "#D7D4F5" }}>
+        <Settings size={16} color={C.blurple} />
+        <span style={{ fontSize: 13.5, color: C.ink }}>Você está navegando como <b>{ROLE_LABEL[perfil.role]}</b>.</span>
+      </Card>
+
+      <Card style={{ padding: 0, overflowX: "auto" }}>
+        <div style={{ minWidth: 620 }}>
+          <div style={{ display: "flex", padding: "10px 16px", borderBottom: `1px solid ${C.border}`, background: "#FAFAF8", fontSize: 11.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            <span style={{ flex: "1 1 230px" }}>Permissão</span>
+            {roles.map((r) => <span key={r} style={{ flex: "0 0 78px", textAlign: "center" }}>{ROLE_LABEL[r]}</span>)}
+          </div>
+          {MATRIZ_ACESSO.map(([acao, perm], idx) => (
+            <div key={idx} style={{ display: "flex", padding: "11px 16px", borderBottom: idx < MATRIZ_ACESSO.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+              <span style={{ flex: "1 1 230px", fontSize: 13.5 }}>{acao}</span>
+              {roles.map((r) => (
+                <span key={r} style={{ flex: "0 0 78px", textAlign: "center" }}>
+                  {perm[r]
+                    ? <Check size={15} color="#256B3B" strokeWidth={3} style={{ display: "inline" }} />
+                    : <span style={{ color: C.faint }}>—</span>}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Card>
+      <p style={{ fontSize: 12, color: C.faint, marginTop: 12 }}>Na versão real, o perfil vem do login (via Discord) e essas regras são aplicadas no back-end.</p>
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -1442,6 +1524,16 @@ export default function App() {
   const [feriados, setFeriados] = useState(seedFeriados);
   const [escala, setEscala] = useState(seedEscala);
   const [checklists, setChecklists] = useState(seedChecklists);
+  const [perfilId, setPerfilId] = useState("admin");
+  const perfil = PERFIS.find((p) => p.id === perfilId);
+
+  function trocarPerfil(id) {
+    const p = PERFIS.find((x) => x.id === id);
+    setPerfilId(id);
+    setNovo(false);
+    if (p.role === "colaborador") { setModulo("colaboradores"); setDetalheId(p.colaboradorId); }
+    else { setModulo(NAV_PERM.dashboard.includes(p.role) ? "dashboard" : "colaboradores"); setDetalheId(null); }
+  }
 
   function toggleCheck(colaboradorId, tipo, itemId) {
     setChecklists((cl) => {
@@ -1541,21 +1633,32 @@ export default function App() {
   ];
 
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
+  const visiveis = escopoColaboradores(colaboradores, perfil);
+  const mostrarSalario = podeVerSensivel(perfil.role);
+  const podeEditar = podeEditarCadastro(perfil.role);
+
+  function fichaProps(c) {
+    const verSensivel = podeVerSensivel(perfil.role) || (perfil.role === "colaborador" && c.id === perfil.colaboradorId);
+    return { colaborador: c, eventos: eventos.filter((e) => e.colaboradorId === c.id), documentos: documentos.filter((d) => d.colaboradorId === c.id), ferias: getFerias(ferias, c.id), checks: getChecks(checklists, c.id), podeEditar, verSensivel, onSalvar: editar, onAddEvento: addEvento, onUploadDoc: addDocumento, onAssinarDoc: assinarDoc, onVerDoc: setViewDoc, onDesligar: desligar, onReativar: reativar, onProgramarFerias: programarFerias, onToggleCheck: toggleCheck };
+  }
 
   let conteudo;
-  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} />;
+  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={visiveis} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} />;
   else if (modulo === "colaboradores") {
-    if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
-    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} ferias={getFerias(ferias, detalhe.id)} checks={getChecks(checklists, detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onProgramarFerias={programarFerias} onToggleCheck={toggleCheck} onVoltar={() => setDetalheId(null)} />;
-    else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
+    if (perfil.role === "colaborador") {
+      const meu = colaboradores.find((c) => c.id === perfil.colaboradorId);
+      conteudo = <Ficha {...fichaProps(meu)} onVoltar={() => {}} />;
+    } else if (novo && podeEditar) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
+    else if (detalhe) conteudo = <Ficha {...fichaProps(detalhe)} onVoltar={() => setDetalheId(null)} />;
+    else conteudo = <Lista colaboradores={visiveis} mostrarSalario={mostrarSalario} podeNovo={podeEditar} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
-  else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={colaboradores} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
+  else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={visiveis} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
-  else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={colaboradores} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} />;
+  else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={visiveis} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} />;
   else if (modulo === "lembretes") conteudo = <Lembretes lembretes={gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos })} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
   else if (modulo === "indicadores") conteudo = <Indicadores colaboradores={colaboradores} ferias={ferias} notas={notas} documentos={documentos} onNav={(m) => { setModulo(m); setNovo(false); setDetalheId(null); }} />;
-  else conteudo = <EmBreve titulo="Configurações" fase="Fase 1" />;
+  else conteudo = <ConfigAcessos perfil={perfil} />;
 
   return (
     <div style={{ fontFamily: SANS, color: C.ink, background: C.bg, minHeight: "100vh" }}>
@@ -1588,14 +1691,15 @@ export default function App() {
             </div>
           </div>
           <div className="xmx-navlist">
-            {nav.map((n) => {
+            {nav.filter((n) => NAV_PERM[n.id].includes(perfil.role)).map((n) => {
               const Icon = n.icon; const on = modulo === n.id;
+              const label = perfil.role === "colaborador" && n.id === "colaboradores" ? "Meu perfil" : n.label;
               return (
-                <button key={n.id} className="xmx-nav btn" onClick={() => { setModulo(n.id); setNovo(false); setDetalheId(null); }}
+                <button key={n.id} className="xmx-nav btn" onClick={() => { setModulo(n.id); setNovo(false); if (perfil.role !== "colaborador") setDetalheId(null); }}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
                     border: "none", borderRadius: 9, padding: "9px 10px", marginBottom: 2, fontFamily: SANS, fontSize: 13.5, fontWeight: 500,
                     background: on ? "#EDECFB" : "transparent", color: on ? C.blurple : C.ink }}>
-                  <Icon size={17} /> {n.label}
+                  <Icon size={17} /> {label}
                 </button>
               );
             })}
@@ -1604,15 +1708,14 @@ export default function App() {
 
         {/* main */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ borderBottom: `1px solid ${C.border}`, background: C.surface, padding: "12px 20px",
-            display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>Ana Ribeiro</div>
-                <div style={{ fontSize: 11, color: C.faint }}>Financeiro · Admin</div>
-              </div>
-              <Avatar nome="Ana Ribeiro" size={32} />
-            </div>
+          <div style={{ borderBottom: `1px solid ${C.border}`, background: C.surface, padding: "10px 20px",
+            display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: C.faint }}>Ver como:</span>
+            <select value={perfilId} onChange={(e) => trocarPerfil(e.target.value)}
+              style={{ fontFamily: SANS, fontSize: 13, color: C.ink, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "7px 10px" }}>
+              {PERFIS.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+            <span style={{ fontSize: 11.5, fontWeight: 500, color: C.blurple, background: "#EDECFB", padding: "4px 10px", borderRadius: 999 }}>{ROLE_LABEL[perfil.role]}</span>
           </div>
           <div style={{ padding: "26px 20px 60px" }}>{conteudo}</div>
         </div>
