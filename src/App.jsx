@@ -206,12 +206,12 @@ const seedChecklists = {
 const getChecks = (checklists, id) => checklists[id] || { admissao: {}, desligamento: {} };
 
 /* ---------- Controle de acessos por perfil ---------- */
-const PERFIS = [
-  { id: "admin", nome: "Ana — Admin", role: "admin" },
-  { id: "financeiro", nome: "Perfil Financeiro", role: "financeiro" },
-  { id: "rh", nome: "Perfil RH", role: "rh" },
-  { id: "gestor", nome: "Gestor · Tráfego", role: "gestor", setor: "Tráfego" },
-  { id: "colaborador", nome: "Beatriz — Colaborador", role: "colaborador", colaboradorId: "c2" },
+const seedContas = [
+  { email: "admin@xmx.com", senha: "123", nome: "Ana Ribeiro", role: "admin" },
+  { email: "rh@xmx.com", senha: "123", nome: "Equipe RH", role: "rh" },
+  { email: "financeiro@xmx.com", senha: "123", nome: "Equipe Financeiro", role: "financeiro" },
+  { email: "andre@xmx.com", senha: "123", nome: "André Santos", role: "gestor", setor: "Tráfego", colaboradorId: "c1" },
+  { email: "bia@xmx.com", senha: "123", nome: "Beatriz Lima", role: "colaborador", colaboradorId: "c2" },
 ];
 const ROLE_LABEL = { admin: "Admin", financeiro: "Financeiro", rh: "RH", gestor: "Gestor", colaborador: "Colaborador" };
 const NAV_PERM = {
@@ -499,6 +499,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed, verSensivel = true, pode
     tipo: "colaborador", status: "ativo", nome: "", cpf: "", cnpj: "", nomeCnpj: "", nascimento: "",
     telefone: "", email: "", endereco: "", pix: "", banco: "", agencia: "", conta: "", tipoConta: "Corrente",
     discordId: "", admissao: "", setor: "", cargo: "", salario: "", plano: "", ehMae: false, possuiFilhos: false, qtdFilhos: 0, obs: "",
+    acessoRole: "colaborador", acessoSenha: "",
   });
   const set = (k, v) => setF({ ...f, [k]: v });
   const ok = f.nome.trim() && f.cpf.trim();
@@ -601,6 +602,26 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed, verSensivel = true, pode
           </Field>
         </div>
       </Card>
+
+      {!inicial && podeEditar && (
+        <Card style={{ padding: 22, marginBottom: 20 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>Acesso ao sistema</h2>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: "0 0 16px" }}>Defina como a pessoa vai entrar. O login é o e-mail informado acima.</p>
+          <div style={grid} className="g2">
+            <Field label="Perfil de acesso">
+              <select className={inp} value={f.acessoRole} onChange={(e) => set("acessoRole", e.target.value)}>
+                <option value="colaborador">Colaborador</option>
+                <option value="gestor">Gestor</option>
+                <option value="rh">RH</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="admin">Admin</option>
+              </select>
+            </Field>
+            <Field label="Senha inicial"><input className={inp} value={f.acessoSenha} onChange={(e) => set("acessoSenha", e.target.value)} placeholder="defina uma senha" /></Field>
+          </div>
+          <div style={{ fontSize: 11.5, color: C.faint, marginTop: 10 }}>Deixe a senha em branco se a pessoa não for acessar o sistema.</div>
+        </Card>
+      )}
 
       {podeEditar ? (
         <div style={{ display: "flex", gap: 10 }}>
@@ -1492,6 +1513,65 @@ function ConfigAcessos({ perfil }) {
   );
 }
 
+/* ---------- Tela de login ---------- */
+function Login({ contas, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const campo = { width: "100%", boxSizing: "border-box", fontFamily: SANS, fontSize: 14, color: C.ink, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 10, padding: "10px 12px" };
+
+  function entrar() {
+    if (!onLogin(email, senha)) setErro("E-mail ou senha inválidos.");
+  }
+
+  return (
+    <div style={{ fontFamily: SANS, background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 20 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#0B1220", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>XMX</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1 }}>Sistema XMX</div>
+            <div style={{ fontSize: 11.5, color: C.faint }}>Pessoas · RH · Financeiro</div>
+          </div>
+        </div>
+
+        <Card style={{ padding: 26 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Entrar</h1>
+          <p style={{ fontSize: 13, color: C.muted, margin: "0 0 20px" }}>Acesse com o e-mail e a senha cadastrados pelo RH ou Financeiro.</p>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <span style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>E-mail</span>
+              <input style={campo} value={email} onChange={(e) => { setEmail(e.target.value); setErro(""); }} placeholder="voce@xmx.com" onKeyDown={(e) => e.key === "Enter" && entrar()} />
+            </div>
+            <div>
+              <span style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>Senha</span>
+              <input style={campo} type="password" value={senha} onChange={(e) => { setSenha(e.target.value); setErro(""); }} placeholder="••••" onKeyDown={(e) => e.key === "Enter" && entrar()} />
+            </div>
+            {erro && <div style={{ fontSize: 12.5, color: C.desligInk }}>{erro}</div>}
+            <Btn onClick={entrar} style={{ width: "100%", justifyContent: "center", marginTop: 4 }}>Entrar</Btn>
+          </div>
+        </Card>
+
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 11.5, color: C.faint, marginBottom: 8, textAlign: "center" }}>Contas de teste (senha: 123) — clique para entrar</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {contas.map((c) => (
+              <button key={c.email} className="nf-login btn" onClick={() => onLogin(c.email, c.senha)}
+                style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontFamily: SANS, textAlign: "left" }}>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "block", fontSize: 12.5, fontWeight: 500, color: C.ink }}>{c.nome}</span>
+                  <span style={{ fontSize: 11.5, color: C.muted, fontFamily: MONO }}>{c.email}</span>
+                </span>
+                <span style={{ fontSize: 11, color: C.blurple, background: "#EDECFB", padding: "3px 9px", borderRadius: 999 }}>{ROLE_LABEL[c.role]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -1524,16 +1604,19 @@ export default function App() {
   const [feriados, setFeriados] = useState(seedFeriados);
   const [escala, setEscala] = useState(seedEscala);
   const [checklists, setChecklists] = useState(seedChecklists);
-  const [perfilId, setPerfilId] = useState("admin");
-  const perfil = PERFIS.find((p) => p.id === perfilId);
+  const [usuario, setUsuario] = useState(null);
+  const [contas, setContas] = useState(seedContas);
 
-  function trocarPerfil(id) {
-    const p = PERFIS.find((x) => x.id === id);
-    setPerfilId(id);
+  function login(email, senha) {
+    const c = contas.find((x) => x.email.toLowerCase() === (email || "").trim().toLowerCase() && x.senha === senha);
+    if (!c) return false;
+    setUsuario(c);
     setNovo(false);
-    if (p.role === "colaborador") { setModulo("colaboradores"); setDetalheId(p.colaboradorId); }
-    else { setModulo(NAV_PERM.dashboard.includes(p.role) ? "dashboard" : "colaboradores"); setDetalheId(null); }
+    if (c.role === "colaborador") { setModulo("colaboradores"); setDetalheId(c.colaboradorId); }
+    else { setModulo(NAV_PERM.dashboard.includes(c.role) ? "dashboard" : "colaboradores"); setDetalheId(null); }
+    return true;
   }
+  function logout() { setUsuario(null); setModulo("dashboard"); setDetalheId(null); setNovo(false); }
 
   function toggleCheck(colaboradorId, tipo, itemId) {
     setChecklists((cl) => {
@@ -1587,6 +1670,10 @@ export default function App() {
     const id = "c" + Date.now();
     setColaboradores((cs) => [{ ...dados, id }, ...cs]);
     setEventos((es) => [mkEvento(id, "admissao", dados.admissao || HOJE, `Admitido como ${dados.cargo || "colaborador"}`), ...es]);
+    if (dados.email && dados.acessoSenha) {
+      setContas((cts) => [...cts.filter((c) => c.email.toLowerCase() !== dados.email.toLowerCase()),
+        { email: dados.email, senha: dados.acessoSenha, senhaVisivel: dados.acessoSenha, nome: dados.nome, role: dados.acessoRole || "colaborador", setor: dados.setor, colaboradorId: id }]);
+    }
     setNovo(false);
     setDetalheId(id);
   }
@@ -1631,6 +1718,9 @@ export default function App() {
     { id: "indicadores", label: "Indicadores", icon: BarChart3 },
     { id: "config", label: "Configurações", icon: Settings },
   ];
+
+  if (!usuario) return <Login contas={contas} onLogin={login} />;
+  const perfil = usuario;
 
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
   const visiveis = escopoColaboradores(colaboradores, perfil);
@@ -1710,12 +1800,12 @@ export default function App() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ borderBottom: `1px solid ${C.border}`, background: C.surface, padding: "10px 20px",
             display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: C.faint }}>Ver como:</span>
-            <select value={perfilId} onChange={(e) => trocarPerfil(e.target.value)}
-              style={{ fontFamily: SANS, fontSize: 13, color: C.ink, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "7px 10px" }}>
-              {PERFIS.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{usuario.nome}</div>
+              <div style={{ fontSize: 11, color: C.faint }}>{usuario.email}</div>
+            </div>
             <span style={{ fontSize: 11.5, fontWeight: 500, color: C.blurple, background: "#EDECFB", padding: "4px 10px", borderRadius: 999 }}>{ROLE_LABEL[perfil.role]}</span>
+            <Btn variant="ghost" onClick={logout}><LogOut size={15} /> Sair</Btn>
           </div>
           <div style={{ padding: "26px 20px 60px" }}>{conteudo}</div>
         </div>
