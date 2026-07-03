@@ -4,7 +4,7 @@ import {
   Search, Plus, Cake, Gift, Clock, Receipt, BadgeCheck, FileText, Megaphone,
   PartyPopper, ArrowLeft, Briefcase, UserCheck, AlertTriangle,
   LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
-  FileSignature, FileCheck, Paperclip, Star, Eye,
+  FileSignature, FileCheck, Paperclip, Star, Eye, UserX, RotateCcw,
 } from "lucide-react";
 
 /* ---------- tokens ---------- */
@@ -24,7 +24,7 @@ const seed = [
   { id: "c2", tipo: "colaborador", status: "ativo", nome: "BEATRIZ LIMA", cpf: "234.567.890-11", cnpj: "", nomeCnpj: "", nascimento: "1998-03-21", telefone: "(11) 99999-0002", email: "bia@xmx.com", endereco: "Rua B, 200 - São Paulo/SP", pix: "234.567.890-11", banco: "Itaú", agencia: "1234", conta: "56789-0", tipoConta: "Corrente", discordId: "bia#4321", admissao: "2023-08-15", setor: "Copy", cargo: "Copywriter", salario: 3200, plano: "", ehMae: true, possuiFilhos: true, qtdFilhos: 1, obs: "Enviar lembrete no Dia das Mães." },
   { id: "c3", tipo: "prestador", status: "ativo", nome: "CARLOS MOTA", cpf: "345.678.901-22", cnpj: "39.665.201/0001-30", nomeCnpj: "Carlos Mota Dados ME", nascimento: "1990-11-02", telefone: "(21) 98888-0003", email: "carlos@dados.com", endereco: "Av. C, 300 - Rio de Janeiro/RJ", pix: "39.665.201/0001-30", banco: "Inter", agencia: "0001", conta: "99887-1", tipoConta: "Corrente", discordId: "carlos#7777", admissao: "2025-01-20", setor: "Dados", cargo: "Analista de Dados (PJ)", salario: 6000, plano: "", ehMae: false, possuiFilhos: false, qtdFilhos: 0, obs: "" },
   { id: "c4", tipo: "colaborador", status: "ativo", nome: "DANIELA ROCHA", cpf: "456.789.012-33", cnpj: "", nomeCnpj: "", nascimento: "1992-07-25", telefone: "(31) 97777-0004", email: "dani@xmx.com", endereco: "Rua D, 400 - Belo Horizonte/MG", pix: "dani@xmx.com", banco: "Bradesco", agencia: "2233", conta: "44556-7", tipoConta: "Poupança", discordId: "dani#2020", admissao: "2022-05-03", setor: "RH", cargo: "Analista de RH", salario: 3800, plano: "Especialização em DP", ehMae: false, possuiFilhos: false, qtdFilhos: 0, obs: "" },
-  { id: "c5", tipo: "colaborador", status: "desligado", nome: "EDUARDO PINTO", cpf: "567.890.123-44", cnpj: "", nomeCnpj: "", nascimento: "1988-05-14", telefone: "(11) 96666-0005", email: "edu@xmx.com", endereco: "Rua E, 500 - São Paulo/SP", pix: "", banco: "Santander", agencia: "3344", conta: "77889-0", tipoConta: "Corrente", discordId: "", admissao: "2021-03-01", setor: "Funil", cargo: "Especialista em Funil", salario: 5200, plano: "", ehMae: false, possuiFilhos: true, qtdFilhos: 3, obs: "Desligado em 05/2026." },
+  { id: "c5", tipo: "colaborador", status: "desligado", nome: "EDUARDO PINTO", cpf: "567.890.123-44", cnpj: "", nomeCnpj: "", nascimento: "1988-05-14", telefone: "(11) 96666-0005", email: "edu@xmx.com", endereco: "Rua E, 500 - São Paulo/SP", pix: "", banco: "Santander", agencia: "3344", conta: "77889-0", tipoConta: "Corrente", discordId: "", admissao: "2021-03-01", setor: "Funil", cargo: "Especialista em Funil", salario: 5200, plano: "", ehMae: false, possuiFilhos: true, qtdFilhos: 3, obs: "Desligado em 05/2026.", desligadoEm: "2026-05-20", motivoDesligamento: "Desligamento a pedido do colaborador" },
   { id: "c6", tipo: "prestador", status: "ativo", nome: "FERNANDA DIAS", cpf: "678.901.234-55", cnpj: "55.108.334/0001-72", nomeCnpj: "Fernanda Dias Filmes", nascimento: "1996-09-30", telefone: "(41) 95555-0006", email: "fe@filmes.com", endereco: "Rua F, 600 - Curitiba/PR", pix: "55.108.334/0001-72", banco: "Caixa", agencia: "0100", conta: "11223-3", tipoConta: "Corrente", discordId: "fe#9090", admissao: "2024-11-11", setor: "AudioVisual", cargo: "Editora de Vídeo (PJ)", salario: 4800, plano: "", ehMae: true, possuiFilhos: true, qtdFilhos: 2, obs: "" },
 ];
 
@@ -51,6 +51,7 @@ const EVENTOS = {
   ferias:             { label: "Férias",              icon: Plane,          cor: "#378ADD" },
   advertencia:        { label: "Advertência",         icon: AlertTriangle,  cor: "#BA7517" },
   desligamento:       { label: "Desligamento",        icon: LogOut,         cor: "#A83226" },
+  reativacao:         { label: "Reativação",          icon: RotateCcw,      cor: "#1D9E75" },
 };
 const TIPOS_MANUAIS = ["advertencia", "ferias", "promocao", "mudanca_setor", "alteracao_salarial"];
 
@@ -233,44 +234,52 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [] }) {
 function Lista({ colaboradores, onNovo, onAbrir }) {
   const [busca, setBusca] = useState("");
   const [fSetor, setFSetor] = useState("Todos");
-  const [fStatus, setFStatus] = useState("Todos");
+  const [aba, setAba] = useState("ativos");
   const inp = { fontFamily: SANS, fontSize: 13, color: C.ink, background: "#fff",
     border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "8px 10px" };
 
-  const filtrados = colaboradores.filter((c) => {
+  const nAtivos = colaboradores.filter((c) => c.status === "ativo").length;
+  const nArquivo = colaboradores.filter((c) => c.status === "desligado").length;
+
+  const base = colaboradores.filter((c) => (aba === "ativos" ? c.status === "ativo" : c.status === "desligado"));
+  const filtrados = base.filter((c) => {
     const q = busca.toLowerCase();
-    const bate = !q || [c.nome, c.cpf, c.cnpj, c.cargo, c.setor, c.banco, c.email, c.telefone]
-      .some((v) => (v || "").toLowerCase().includes(q));
-    return bate && (fSetor === "Todos" || c.setor === fSetor) && (fStatus === "Todos" || c.status === fStatus);
+    const bate = !q || [c.nome, c.cpf, c.cnpj, c.cargo, c.setor, c.banco, c.email, c.telefone].some((v) => (v || "").toLowerCase().includes(q));
+    return bate && (fSetor === "Todos" || c.setor === fSetor);
   });
+
+  const Seg = ({ id, label }) => (
+    <button className="btn" onClick={() => setAba(id)} style={{ border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 13, fontWeight: 500, padding: "6px 14px", borderRadius: 8, background: aba === id ? "#fff" : "transparent", color: aba === id ? C.ink : C.muted, boxShadow: aba === id ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
+  );
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Colaboradores</h1>
-        <Btn onClick={onNovo}><Plus size={16} /> Novo colaborador</Btn>
+        {aba === "ativos" && <Btn onClick={onNovo}><Plus size={16} /> Novo colaborador</Btn>}
       </div>
-      <p style={{ fontSize: 13.5, color: C.muted, margin: "4px 0 18px" }}>{filtrados.length} de {colaboradores.length}</p>
+
+      <div style={{ display: "inline-flex", background: "#EEEDE7", borderRadius: 10, padding: 3, marginBottom: 16 }}>
+        <Seg id="ativos" label={`Ativos (${nAtivos})`} />
+        <Seg id="arquivo" label={`Arquivo morto (${nArquivo})`} />
+      </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${C.borderStrong}`,
-          borderRadius: 9, padding: "0 10px", flex: "1 1 240px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "0 10px", flex: "1 1 240px" }}>
           <Search size={16} color={C.faint} />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, cargo, setor, banco…"
-            style={{ ...inp, border: "none", padding: "9px 0", flex: 1, outline: "none" }} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, cargo, setor, banco…" style={{ ...inp, border: "none", padding: "9px 0", flex: 1, outline: "none" }} />
         </div>
         <select style={inp} value={fSetor} onChange={(e) => setFSetor(e.target.value)}>
           <option>Todos</option>{SETORES.map((s) => <option key={s}>{s}</option>)}
         </select>
-        <select style={inp} value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
-          <option value="Todos">Todos os status</option>
-          <option value="ativo">Ativo</option>
-          <option value="desligado">Desligado</option>
-        </select>
       </div>
 
       <div style={{ display: "grid", gap: 8 }}>
-        {filtrados.length === 0 && <Card style={{ padding: 22, fontSize: 13.5, color: C.muted }}>Ninguém encontrado com esses filtros.</Card>}
+        {filtrados.length === 0 && (
+          <Card style={{ padding: 22, fontSize: 13.5, color: C.muted }}>
+            {aba === "ativos" ? "Nenhum colaborador ativo com esses filtros." : "Arquivo morto vazio."}
+          </Card>
+        )}
         {filtrados.map((c) => (
           <Card key={c.id} className="row" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", flexWrap: "wrap" }}>
             <div onClick={() => onAbrir(c)} style={{ display: "flex", alignItems: "center", gap: 14, flex: "1 1 240px", minWidth: 0 }}>
@@ -280,7 +289,9 @@ function Lista({ colaboradores, onNovo, onAbrir }) {
                 <div style={{ fontSize: 12.5, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
               </div>
             </div>
-            <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.ink }}>{brl(c.salario)}</div>
+            {aba === "ativos"
+              ? <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.ink }}>{brl(c.salario)}</div>
+              : <div style={{ fontSize: 12.5, color: C.faint }}>Desligado em {dmy(c.desligadoEm)}</div>}
             <StatusPill status={c.status} />
           </Card>
         ))}
@@ -405,10 +416,12 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
 }
 
 /* ---------- Ficha do colaborador (Histórico + Dados + Documentos) ---------- */
-function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onVoltar }) {
+function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
+  const [deslig, setDeslig] = useState(false);
+  const [dl, setDl] = useState({ data: HOJE, motivo: "" });
   const ordenados = [...eventos].sort((a, b) => b.data.localeCompare(a.data));
 
   const TabBtn = ({ id, label }) => (
@@ -429,7 +442,36 @@ function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onU
           <div style={{ fontSize: 13, color: C.muted }}>{c.cargo} · {c.setor}{c.tipo === "prestador" ? " · PJ" : ""}</div>
         </div>
         <StatusPill status={c.status} />
+        {c.status === "ativo" && (
+          <Btn variant="ghost" onClick={() => setDeslig(!deslig)}><UserX size={15} /> Desligar</Btn>
+        )}
       </div>
+
+      {c.status === "desligado" && (
+        <Card style={{ padding: "14px 16px", marginBottom: 18, background: "#FAE7E4", borderColor: "#EDC9C3", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <UserX size={18} color={C.desligInk} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500, color: C.desligInk }}>Desligado em {dmy(c.desligadoEm)}</div>
+            {c.motivoDesligamento && <div style={{ fontSize: 12.5, color: "#8A5049" }}>{c.motivoDesligamento}</div>}
+          </div>
+          <Btn variant="ghost" onClick={() => onReativar(c.id)}><RotateCcw size={14} /> Reativar</Btn>
+        </Card>
+      )}
+
+      {deslig && c.status === "ativo" && (
+        <Card style={{ padding: 16, marginBottom: 18, borderColor: "#EDC9C3" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Desligar {primeiro(c.nome)}</div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>A pessoa sai da lista de ativos e vai para o Arquivo Morto, com todo o histórico preservado.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="g2">
+            <Field label="Data do desligamento"><input className="inp" type="date" value={dl.data} onChange={(e) => setDl({ ...dl, data: e.target.value })} /></Field>
+            <Field label="Motivo" span><input className="inp" value={dl.motivo} onChange={(e) => setDl({ ...dl, motivo: e.target.value })} placeholder="Ex: pedido de demissão, término de contrato…" /></Field>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button className="btn" onClick={() => { onDesligar(c.id, dl); setDeslig(false); }} style={{ background: C.desligBg, color: C.desligInk, border: "1px solid transparent", borderRadius: 10, padding: "9px 14px", fontSize: 13.5, fontWeight: 500, fontFamily: SANS, cursor: "pointer" }}>Confirmar desligamento</button>
+            <Btn variant="ghost" onClick={() => setDeslig(false)}>Cancelar</Btn>
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "flex", gap: 22, borderBottom: `1px solid ${C.border}`, marginBottom: 18 }}>
         <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
@@ -905,6 +947,15 @@ export default function App() {
     setEventos((es) => [mkEvento(colaboradorId, e.tipo, e.data || HOJE, e.descricao), ...es]);
   }
 
+  function desligar(id, { data, motivo }) {
+    setColaboradores((cs) => cs.map((c) => (c.id === id ? { ...c, status: "desligado", desligadoEm: data || HOJE, motivoDesligamento: motivo } : c)));
+    setEventos((es) => [mkEvento(id, "desligamento", data || HOJE, motivo || "Colaborador desligado"), ...es]);
+  }
+  function reativar(id) {
+    setColaboradores((cs) => cs.map((c) => (c.id === id ? { ...c, status: "ativo", desligadoEm: "", motivoDesligamento: "" } : c)));
+    setEventos((es) => [mkEvento(id, "reativacao", HOJE, "Colaborador reativado"), ...es]);
+  }
+
   const nav = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "colaboradores", label: "Colaboradores", icon: Users },
@@ -921,7 +972,7 @@ export default function App() {
   if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} />;
   else if (modulo === "colaboradores") {
     if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
-    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onVoltar={() => setDetalheId(null)} />;
+    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
