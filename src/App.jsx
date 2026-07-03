@@ -1208,7 +1208,22 @@ function FeriasGlobal({ colaboradores, ferias, onAbrir }) {
 }
 
 /* ---------- Feriados & Escala ---------- */
-function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetRegra }) {
+function exportarEscalaCSV(feriado, ativos, escala) {
+  const cols = ["Colaborador", "Setor", "Situação", "Salário", "Valor a receber"];
+  const linhas = ativos.map((c) => {
+    const regra = getRegra(escala, feriado.id, c.id);
+    const valor = regra === "normal" ? (c.salario || 0) / 30 * 2 : 0;
+    return [c.nome, c.setor, REGRAS[regra].label, (c.salario || 0).toFixed(2).replace(".", ","), valor.toFixed(2).replace(".", ",")]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";");
+  });
+  const csv = "\uFEFF" + [cols.join(";"), ...linhas].join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = `escala-${feriado.nome.replace(/\s+/g, "-").toLowerCase()}-${feriado.data}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetRegra, verSalario = true }) {
   const ordenados = [...feriados].sort((a, b) => a.data.localeCompare(b.data));
   const [selId, setSelId] = useState(ordenados[0]?.id || null);
   const [addF, setAddF] = useState(false);
@@ -1217,6 +1232,8 @@ function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetR
   const ativos = colaboradores.filter((c) => c.status === "ativo");
   const inp = { fontFamily: SANS, fontSize: 13, color: C.ink, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "7px 9px" };
   const nfOk = nf.data && nf.nome.trim();
+  const valorExtra = (c) => (c.salario || 0) / 30 * 2;
+  const totalPagar = sel ? ativos.reduce((s, c) => s + (getRegra(escala, sel.id, c.id) === "normal" ? valorExtra(c) : 0), 0) : 0;
 
   return (
     <div style={{ maxWidth: 780 }}>
@@ -1264,20 +1281,27 @@ function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetR
 
       {sel && (
         <Card style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "12px 16px", background: "#FAFAF8", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ padding: "12px 16px", background: "#FAFAF8", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <CalendarClock size={15} color={C.muted} />
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>{sel.nome}</span>
             <span style={{ fontSize: 12, color: C.faint, fontFamily: MONO }}>· {dmy(sel.data)}</span>
+            {verSalario && (
+              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12.5, color: C.muted }}>Total a pagar: <b style={{ fontFamily: MONO, color: C.ink }}>{brl(totalPagar)}</b></span>
+                <Btn variant="ghost" onClick={() => exportarEscalaCSV(sel, ativos, escala)}><Download size={15} /> Exportar CSV</Btn>
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", padding: "8px 16px", fontSize: 11.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${C.border}` }}>
             <span style={{ flex: 1 }}>Colaborador</span>
             <span style={{ flex: "0 0 200px" }}>Situação / Ação</span>
+            {verSalario && <span style={{ flex: "0 0 120px", textAlign: "right" }}>Valor a receber</span>}
           </div>
           {ativos.map((c) => {
             const regra = getRegra(escala, sel.id, c.id);
             const r = REGRAS[regra];
             return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${C.border}` }}>
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                   <Avatar nome={c.nome} size={30} />
                   <div style={{ minWidth: 0 }}>
@@ -1291,9 +1315,19 @@ function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetR
                     {Object.keys(REGRAS).map((k) => <option key={k} value={k}>{REGRAS[k].label}</option>)}
                   </select>
                 </div>
+                {verSalario && (
+                  <div style={{ flex: "0 0 120px", textAlign: "right" }}>
+                    {regra === "normal"
+                      ? <span title="(salário ÷ 30) × 2" style={{ fontFamily: MONO, fontSize: 13, fontWeight: 500, color: "#256B3B", background: "#E3F2E6", padding: "5px 10px", borderRadius: 8, display: "inline-block" }}>{brl(valorExtra(c))}</span>
+                      : <span style={{ color: C.faint, fontSize: 13 }}>—</span>}
+                  </div>
+                )}
               </div>
             );
           })}
+          {verSalario && (
+            <div style={{ padding: "10px 16px", fontSize: 11.5, color: C.faint }}>Valor a receber por trabalhar no feriado = (salário ÷ 30) × 2, para quem está como "Trabalha e recebe".</div>
+          )}
         </Card>
       )}
     </div>
@@ -1743,7 +1777,7 @@ export default function App() {
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
   else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={visiveis} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
-  else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={visiveis} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} />;
+  else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={visiveis} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} verSalario={mostrarSalario} />;
   else if (modulo === "lembretes") conteudo = <Lembretes lembretes={gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos })} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
   else if (modulo === "indicadores") conteudo = <Indicadores colaboradores={colaboradores} ferias={ferias} notas={notas} documentos={documentos} onNav={(m) => { setModulo(m); setNovo(false); setDetalheId(null); }} />;
   else conteudo = <ConfigAcessos perfil={perfil} />;
