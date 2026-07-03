@@ -5,7 +5,7 @@ import {
   PartyPopper, ArrowLeft, Briefcase, UserCheck, AlertTriangle,
   LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
   FileSignature, FileCheck, Paperclip, Star, Eye, UserX, RotateCcw,
-  Coffee, DollarSign, Coins, CalendarClock, CalendarPlus,
+  Coffee, DollarSign, Coins, CalendarClock, CalendarPlus, Bell,
 } from "lucide-react";
 
 /* ---------- tokens ---------- */
@@ -182,6 +182,65 @@ const seedEscala = {
 };
 const getRegra = (escala, feriadoId, colaboradorId) => (escala[feriadoId] || {})[colaboradorId] || "folga";
 
+/* ---------- Lembretes automáticos: motor ---------- */
+const seedComemorativas = [
+  { data: "2026-07-26", nome: "Dia dos Avós" },
+  { data: "2026-08-09", nome: "Dia dos Pais" },
+  { data: "2026-09-15", nome: "Dia do Cliente" },
+];
+const LEMBRETE = {
+  ferias_venc:  { icon: AlertTriangle, cor: "#BA7517", prio: 1 },
+  financeira:   { icon: Wallet,        cor: "#256B3B", prio: 2 },
+  documento:    { icon: FileText,      cor: "#A83226", prio: 3 },
+  aniversario:  { icon: Cake,          cor: "#D85A30", prio: 4 },
+  ferias_prox:  { icon: Plane,         cor: "#378ADD", prio: 5 },
+  comemorativa: { icon: PartyPopper,   cor: "#D4537E", prio: 6 },
+  cadastro:     { icon: UserCheck,     cor: "#7F77DD", prio: 7 },
+};
+function diasAteAniversario(nasc) {
+  if (!nasc) return 999;
+  const md = nasc.slice(5);
+  const [hy] = HOJE.split("-");
+  let alvo = `${hy}-${md}`;
+  if (alvo < HOJE) alvo = `${Number(hy) + 1}-${md}`;
+  return diasEntre(HOJE, alvo);
+}
+function gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos }) {
+  const L = [];
+  const ativos = colaboradores.filter((c) => c.status === "ativo");
+  ativos.forEach((c) => {
+    const d = diasAteAniversario(c.nascimento);
+    if (d >= 0 && d <= 7) L.push({ id: "an" + c.id, tipo: "aniversario", titulo: `Aniversário de ${c.nome}`, sub: d === 0 ? "é hoje!" : `em ${d} dia(s)`, colaboradorId: c.id });
+  });
+  ativos.forEach((c) => {
+    const info = computeFerias(c, getFerias(ferias, c.id));
+    if (info.status === "vencimento" || info.status === "vencidas")
+      L.push({ id: "fv" + c.id, tipo: "ferias_venc", titulo: `Férias ${info.status === "vencidas" ? "vencidas" : "vencendo"} — ${c.nome}`, sub: `limite ${dmy(info.concLimite)}`, colaboradorId: c.id });
+  });
+  Object.entries(ferias).forEach(([cid, rec]) => {
+    rec.movimentos.forEach((m) => {
+      if (m.data >= HOJE && diasEntre(HOJE, m.data) <= 30) {
+        const c = colaboradores.find((x) => x.id === cid);
+        L.push({ id: "fp" + m.id, tipo: "ferias_prox", titulo: `Férias de ${c ? c.nome : ""}`, sub: `início ${dmy(m.data)}`, colaboradorId: cid });
+      }
+    });
+  });
+  const pPend = pagamentos.filter((p) => p.status === "pendente").length;
+  if (pPend) L.push({ id: "pf1", tipo: "financeira", titulo: `${pPend} pagamento(s) pendente(s)`, sub: "aguardando registro" });
+  const nPend = notas.filter((n) => n.status === "pendente").length;
+  if (nPend) L.push({ id: "pf2", tipo: "financeira", titulo: `${nPend} nota(s) fiscal(is) para conferir`, sub: "pendentes de análise" });
+  const semAss = documentos.filter((d) => CATEGORIAS[d.categoria] && CATEGORIAS[d.categoria].assinavel && d.assinado === false).length;
+  if (semAss) L.push({ id: "doc1", tipo: "documento", titulo: `${semAss} contrato(s) aguardando assinatura`, sub: "documentos" });
+  ativos.forEach((c) => {
+    const faltando = [!c.email && "e-mail", !c.telefone && "telefone", !c.pix && "Pix"].filter(Boolean);
+    if (faltando.length) L.push({ id: "cad" + c.id, tipo: "cadastro", titulo: `Cadastro de ${c.nome} incompleto`, sub: `falta: ${faltando.join(", ")}`, colaboradorId: c.id });
+  });
+  seedComemorativas.forEach((dc, i) => {
+    if (dc.data >= HOJE && diasEntre(HOJE, dc.data) <= 30) L.push({ id: "dc" + i, tipo: "comemorativa", titulo: dc.nome, sub: dmy(dc.data) });
+  });
+  return L.sort((a, b) => LEMBRETE[a.tipo].prio - LEMBRETE[b.tipo].prio);
+}
+
 /* ---------- UI base ---------- */
 function Card({ children, style }) {
   return <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, ...style }}>{children}</div>;
@@ -219,7 +278,7 @@ function StatusPill({ status }) {
 }
 
 /* ---------- Dashboard ---------- */
-function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {} }) {
+function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, documentos = [] }) {
   const ativos = colaboradores.filter((c) => c.tipo === "colaborador" && c.status === "ativo").length;
   const prestadores = colaboradores.filter((c) => c.tipo === "prestador" && c.status === "ativo").length;
   const aniMes = colaboradores.filter((c) => mesDia(c.nascimento).slice(0, 2) === "07");
@@ -236,6 +295,8 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {} }) 
     return s === "vencimento" || s === "vencidas";
   }).length;
   const proximasFerias = Object.values(ferias).reduce((n, r) => n + r.movimentos.filter((m) => m.data >= HOJE).length, 0);
+  const lembretes = gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos });
+  const comemorativas = seedComemorativas.filter((d) => d.data >= HOJE).length;
 
   const cards = [
     { icon: Users, v: ativos, l: "Colaboradores ativos", c: "#5865F2" },
@@ -247,8 +308,8 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {} }) 
     { icon: Clock, v: pagPend, l: "Pagamentos pendentes", c: "#BA7517" },
     { icon: BadgeCheck, v: pagFeitos, l: "Pagamentos realizados", c: "#1D9E75" },
     { icon: FileText, v: notasPend, l: "Notas fiscais pendentes", c: "#7F77DD" },
-    { icon: Megaphone, v: 3, l: "Avisos importantes", c: "#D85A30" },
-    { icon: PartyPopper, v: 5, l: "Datas comemorativas", c: "#D4537E" },
+    { icon: Megaphone, v: lembretes.length, l: "Avisos / lembretes", c: "#D85A30" },
+    { icon: PartyPopper, v: comemorativas, l: "Datas comemorativas", c: "#D4537E" },
   ];
 
   return (
@@ -289,10 +350,11 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {} }) 
         <Card style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <Megaphone size={16} color="#D85A30" />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Avisos importantes</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Avisos e lembretes</span>
           </div>
-          {["3 contratos aguardando assinatura", "2 férias vencem em 30 dias", "6 notas fiscais para conferir"].map((a, i) => (
-            <div key={i} style={{ fontSize: 13.5, color: C.ink, padding: "7px 0", borderBottom: i < 2 ? `1px solid ${C.border}` : "none" }}>{a}</div>
+          {lembretes.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>Nada pendente.</div>}
+          {lembretes.slice(0, 5).map((l, i, arr) => (
+            <div key={l.id} style={{ fontSize: 13.5, color: C.ink, padding: "7px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>{l.titulo}</div>
           ))}
         </Card>
       </div>
@@ -1150,6 +1212,35 @@ function FeriadosEscala({ colaboradores, feriados, escala, onNovoFeriado, onSetR
   );
 }
 
+/* ---------- Lembretes automáticos (módulo) ---------- */
+function Lembretes({ lembretes, onAbrir }) {
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Lembretes automáticos</h1>
+      <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 16px" }}>Gerados automaticamente a partir dos dados do sistema.</p>
+      {lembretes.length === 0 && <Card style={{ padding: 22, fontSize: 13.5, color: C.muted }}>Tudo em dia. Nenhum lembrete no momento.</Card>}
+      <div style={{ display: "grid", gap: 8 }}>
+        {lembretes.map((l) => {
+          const cfg = LEMBRETE[l.tipo]; const Icon = cfg.icon;
+          const clickable = !!l.colaboradorId;
+          return (
+            <Card key={l.id} className={clickable ? "row" : ""} onClick={clickable ? () => onAbrir(l.colaboradorId) : undefined}
+              style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: clickable ? "pointer" : "default" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: cfg.cor + "1A", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon size={16} color={cfg.cor} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{l.titulo}</div>
+                <div style={{ fontSize: 12.5, color: C.muted }}>{l.sub}</div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -1266,13 +1357,14 @@ export default function App() {
     { id: "ferias", label: "Férias", icon: Plane },
     { id: "documentos", label: "Documentos", icon: FolderClosed },
     { id: "escala", label: "Feriados & Escala", icon: CalendarDays },
+    { id: "lembretes", label: "Lembretes", icon: Bell },
     { id: "config", label: "Configurações", icon: Settings },
   ];
 
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
 
   let conteudo;
-  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} ferias={ferias} />;
+  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} />;
   else if (modulo === "colaboradores") {
     if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
     else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} ferias={getFerias(ferias, detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onProgramarFerias={programarFerias} onVoltar={() => setDetalheId(null)} />;
@@ -1282,6 +1374,7 @@ export default function App() {
   else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={colaboradores} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
   else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={colaboradores} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} />;
+  else if (modulo === "lembretes") conteudo = <Lembretes lembretes={gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos })} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
   else conteudo = <EmBreve titulo="Configurações" fase="Fase 1" />;
 
   return (
