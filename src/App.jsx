@@ -4,6 +4,7 @@ import {
   Search, Plus, Cake, Gift, Clock, Receipt, BadgeCheck, FileText, Megaphone,
   PartyPopper, ArrowLeft, Briefcase, UserCheck, AlertTriangle,
   LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
+  FileSignature, FileCheck, Paperclip, Star, Eye,
 } from "lucide-react";
 
 /* ---------- tokens ---------- */
@@ -96,6 +97,24 @@ const seedNotas = [
   { id: "nf2", colaboradorId: "c6", setor: "AudioVisual", numero: "000087", competencia: "2026-06", valor: 4800, descricao: "Edição de vídeos", arquivo: "nfse-000087.pdf", status: "aprovada", enviadaEm: "2026-06-25" },
   { id: "nf3", colaboradorId: "c3", setor: "Dados", numero: "000138", competencia: "2026-05", valor: 6000, descricao: "Análise de dados", arquivo: "nfse-000138.pdf", status: "paga", enviadaEm: "2026-06-05" },
   { id: "nf4", colaboradorId: "c6", setor: "AudioVisual", numero: "000081", competencia: "2026-05", valor: 4800, descricao: "Edição de vídeos", arquivo: "nfse-000081.pdf", status: "rejeitada", enviadaEm: "2026-06-02" },
+];
+
+/* ---------- Documentos: categorias e dados ---------- */
+const CATEGORIAS = {
+  contrato:     { label: "Contrato de admissão", icon: FileSignature, destaque: true,  assinavel: true },
+  pessoais:     { label: "Documentos pessoais",  icon: FileText,      destaque: false, assinavel: false },
+  comprovantes: { label: "Comprovantes",         icon: Receipt,       destaque: false, assinavel: false },
+  termos:       { label: "Termos assinados",     icon: FileCheck,     destaque: false, assinavel: true },
+  outros:       { label: "Outros anexos",        icon: Paperclip,     destaque: false, assinavel: false },
+};
+const seedDocumentos = [
+  { id: "d1", colaboradorId: "c1", categoria: "contrato", nome: "CONTRATO_ADMISSAO_ANDRE.pdf", enviadoEm: "2024-02-10", assinado: true },
+  { id: "d2", colaboradorId: "c1", categoria: "pessoais", nome: "RG_ANDRE.pdf", enviadoEm: "2024-02-10", assinado: null },
+  { id: "d3", colaboradorId: "c1", categoria: "comprovantes", nome: "COMPROVANTE_RESIDENCIA.pdf", enviadoEm: "2024-02-11", assinado: null },
+  { id: "d4", colaboradorId: "c2", categoria: "contrato", nome: "CONTRATO_ADMISSAO_BEATRIZ.pdf", enviadoEm: "2023-08-15", assinado: true },
+  { id: "d5", colaboradorId: "c4", categoria: "contrato", nome: "CONTRATO_ADMISSAO_DANIELA.pdf", enviadoEm: "2022-05-03", assinado: false },
+  { id: "d6", colaboradorId: "c3", categoria: "contrato", nome: "CONTRATO_PRESTACAO_CARLOS.pdf", enviadoEm: "2025-01-20", assinado: true },
+  { id: "d7", colaboradorId: "c3", categoria: "outros", nome: "CARTAO_CNPJ.pdf", enviadoEm: "2025-01-20", assinado: null },
 ];
 
 /* ---------- UI base ---------- */
@@ -385,8 +404,8 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
   );
 }
 
-/* ---------- Ficha do colaborador (Histórico + Dados) ---------- */
-function Ficha({ colaborador: c, eventos, onSalvar, onAddEvento, onVoltar }) {
+/* ---------- Ficha do colaborador (Histórico + Dados + Documentos) ---------- */
+function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
@@ -414,6 +433,7 @@ function Ficha({ colaborador: c, eventos, onSalvar, onAddEvento, onVoltar }) {
 
       <div style={{ display: "flex", gap: 22, borderBottom: `1px solid ${C.border}`, marginBottom: 18 }}>
         <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
+        <TabBtn id="documentos" label={`Documentos (${documentos.length})`} />
         <TabBtn id="dados" label="Dados" />
       </div>
 
@@ -460,6 +480,8 @@ function Ficha({ colaborador: c, eventos, onSalvar, onAddEvento, onVoltar }) {
             })}
           </Card>
         </>
+      ) : tab === "documentos" ? (
+        <DocumentosTab colaborador={c} documentos={documentos} onUpload={onUploadDoc} onAssinar={onAssinarDoc} onVer={onVerDoc} />
       ) : (
         <Cadastro inicial={c} embed onSalvar={(d) => { onSalvar(d); setTab("historico"); }} onVoltar={() => setTab("historico")} />
       )}
@@ -664,6 +686,146 @@ function Financeiro({ colaboradores, pagamentos, notas, onRegistrar, onNovoPagam
   );
 }
 
+/* ---------- Visualizador de documento ---------- */
+function DocViewer({ doc, colaborador, onClose }) {
+  const cat = CATEGORIAS[doc.categoria] || {};
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,20,24,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto", zIndex: 50 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 460, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${C.border}`, background: "#FAFAF8" }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: C.ink, fontFamily: MONO }}>{doc.nome}</span>
+          <button className="btn" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.muted, cursor: "pointer", lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ border: "1px solid #C9C8C2", borderRadius: 8, padding: 20, minHeight: 260, background: "#FCFCFB", display: "flex", flexDirection: "column" }}>
+            <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", color: "#8A8B93" }}>{cat.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.ink, marginTop: 6 }}>{doc.nome.replace(/\.[^.]+$/, "").replace(/_/g, " ")}</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>{colaborador.nome} · enviado em {dmy(doc.enviadoEm)}</div>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12.5, textAlign: "center", padding: "24px 0" }}>
+              Pré-visualização simulada.<br />Na versão real, abre o PDF anexado.
+            </div>
+            {cat.assinavel && (
+              <div style={{ paddingTop: 12, borderTop: `1px solid ${C.border}`, fontSize: 12.5, color: doc.assinado ? C.ativoInk : "#8A6410" }}>
+                {doc.assinado ? "✓ Documento assinado" : "Aguardando assinatura"}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Aba Documentos (dentro da ficha) ---------- */
+function DocumentosTab({ colaborador, documentos, onUpload, onAssinar, onVer }) {
+  const ordem = ["contrato", "pessoais", "comprovantes", "termos", "outros"];
+  const UploadBtn = ({ categoria }) => (
+    <label className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${C.borderStrong}`, background: "#fff", borderRadius: 9, padding: "6px 11px", cursor: "pointer", fontSize: 12.5, color: C.ink }}>
+      <Paperclip size={14} /> Enviar
+      <input type="file" style={{ display: "none" }} onChange={(e) => { const n = e.target.files[0]?.name; if (n) onUpload(colaborador.id, categoria, n); e.target.value = ""; }} />
+    </label>
+  );
+
+  const DocRow = ({ d }) => {
+    const cat = CATEGORIAS[d.categoria];
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+        <FileText size={16} color={C.faint} />
+        <button className="btn" onClick={() => onVer(d)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: MONO, fontSize: 12.5, color: C.blurple, textAlign: "left", flex: "1 1 160px", minWidth: 0 }}>{d.nome}</button>
+        <span style={{ fontSize: 12, color: C.faint }}>enviado {dmy(d.enviadoEm)}</span>
+        {cat.assinavel && (
+          <span style={{ fontSize: 11.5, fontWeight: 500, color: d.assinado ? C.ativoInk : "#8A6410", background: d.assinado ? C.ativoBg : "#FBF1DA", padding: "2px 9px", borderRadius: 999 }}>
+            {d.assinado ? "Assinado" : "Pendente"}
+          </span>
+        )}
+        {cat.assinavel && (
+          <Btn variant="ghost" onClick={() => onAssinar(d.id)}>{d.assinado ? "Desmarcar" : "Marcar assinado"}</Btn>
+        )}
+        <Btn variant="ghost" onClick={() => onVer(d)}><Eye size={14} /> Ver</Btn>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {ordem.map((catId) => {
+        const cat = CATEGORIAS[catId];
+        const Icon = cat.icon;
+        const docs = documentos.filter((d) => d.categoria === catId);
+        return (
+          <Card key={catId} style={{ padding: 16, ...(cat.destaque ? { borderColor: "#D7D4F5", background: "#FBFBFE" } : {}) }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: docs.length ? 4 : 0 }}>
+              <Icon size={16} color={cat.destaque ? C.blurple : C.muted} />
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{cat.label}</span>
+              {cat.destaque && <Star size={13} color="#E0A500" fill="#E0A500" />}
+              <span style={{ marginLeft: "auto" }}><UploadBtn categoria={catId} /></span>
+            </div>
+            {docs.length === 0 && <div style={{ fontSize: 12.5, color: C.faint, paddingTop: 8 }}>Nenhum documento nesta categoria.</div>}
+            {docs.map((d) => <DocRow key={d.id} d={d} />)}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------- Documentos (visão global no menu) ---------- */
+function DocumentosGlobal({ colaboradores, documentos, onVer }) {
+  const [fCat, setFCat] = useState("Todos");
+  const [busca, setBusca] = useState("");
+  const nomeDe = (id) => (colaboradores.find((c) => c.id === id) || {}).nome || "—";
+  const semAssinatura = documentos.filter((d) => CATEGORIAS[d.categoria]?.assinavel && d.assinado === false);
+  const sel = { fontFamily: SANS, fontSize: 13, color: C.ink, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "8px 10px" };
+
+  const lista = documentos
+    .filter((d) => fCat === "Todos" || d.categoria === fCat)
+    .filter((d) => { const q = busca.toLowerCase(); return !q || d.nome.toLowerCase().includes(q) || nomeDe(d.colaboradorId).toLowerCase().includes(q); })
+    .sort((a, b) => b.enviadoEm.localeCompare(a.enviadoEm));
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Documentos</h1>
+      <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 16px" }}>Todos os documentos, por colaborador e categoria.</p>
+
+      {semAssinatura.length > 0 && (
+        <Card style={{ padding: "12px 16px", marginBottom: 16, background: "#FBF1DA", borderColor: "#EAD9A8", display: "flex", alignItems: "center", gap: 10 }}>
+          <AlertTriangle size={16} color="#8A6410" />
+          <span style={{ fontSize: 13.5, color: "#8A6410" }}>{semAssinatura.length} contrato(s) aguardando assinatura.</span>
+        </Card>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${C.borderStrong}`, borderRadius: 9, padding: "0 10px", flex: "1 1 220px" }}>
+          <Search size={16} color={C.faint} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por colaborador ou arquivo…" style={{ border: "none", padding: "9px 0", flex: 1, outline: "none", fontFamily: SANS, fontSize: 13 }} />
+        </div>
+        <select style={sel} value={fCat} onChange={(e) => setFCat(e.target.value)}>
+          <option value="Todos">Todas as categorias</option>
+          {Object.keys(CATEGORIAS).map((k) => <option key={k} value={k}>{CATEGORIAS[k].label}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {lista.length === 0 && <Card style={{ padding: 20, fontSize: 13.5, color: C.muted }}>Nenhum documento com esse filtro.</Card>}
+        {lista.map((d) => {
+          const cat = CATEGORIAS[d.categoria];
+          return (
+            <Card key={d.id} style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{nomeDe(d.colaboradorId)}</div>
+                <button className="btn" onClick={() => onVer(d)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: MONO, fontSize: 12, color: C.blurple }}>{d.nome}</button>
+              </div>
+              <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.ink, background: "#EFEEE9", border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 6 }}>{cat.label}</span>
+              {cat.assinavel && <span style={{ fontSize: 11.5, fontWeight: 500, color: d.assinado ? C.ativoInk : "#8A6410" }}>{d.assinado ? "Assinado" : "Pendente"}</span>}
+              <Btn variant="ghost" onClick={() => onVer(d)}><Eye size={14} /> Ver</Btn>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -690,6 +852,16 @@ export default function App() {
   const [pagamentos, setPagamentos] = useState(seedPagamentos);
   const [notas, setNotas] = useState(seedNotas);
   const [viewNota, setViewNota] = useState(null);
+  const [documentos, setDocumentos] = useState(seedDocumentos);
+  const [viewDoc, setViewDoc] = useState(null);
+
+  function addDocumento(colaboradorId, categoria, nome) {
+    const assinado = CATEGORIAS[categoria]?.assinavel ? false : null;
+    setDocumentos((ds) => [{ id: "d" + Date.now(), colaboradorId, categoria, nome, enviadoEm: HOJE, assinado }, ...ds]);
+  }
+  function assinarDoc(id) {
+    setDocumentos((ds) => ds.map((d) => (d.id === id ? { ...d, assinado: !d.assinado } : d)));
+  }
 
   function registrarPagamento(id) {
     setPagamentos((ps) => ps.map((p) => (p.id === id ? { ...p, status: "realizado", dataPagamento: HOJE } : p)));
@@ -749,12 +921,12 @@ export default function App() {
   if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} />;
   else if (modulo === "colaboradores") {
     if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
-    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onVoltar={() => setDetalheId(null)} />;
+    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
   else if (modulo === "ferias") conteudo = <EmBreve titulo="Controle de férias" fase="Fase 3" />;
-  else if (modulo === "documentos") conteudo = <EmBreve titulo="Controle de documentos" fase="Fase 2" />;
+  else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
   else if (modulo === "escala") conteudo = <EmBreve titulo="Feriados & Escala" fase="Fase 3" />;
   else conteudo = <EmBreve titulo="Configurações" fase="Fase 1" />;
 
@@ -821,6 +993,9 @@ export default function App() {
 
       {viewNota && (
         <NotaViewer nota={viewNota} emitente={colaboradores.find((c) => c.id === viewNota.colaboradorId) || {}} onClose={() => setViewNota(null)} />
+      )}
+      {viewDoc && (
+        <DocViewer doc={viewDoc} colaborador={colaboradores.find((c) => c.id === viewDoc.colaboradorId) || {}} onClose={() => setViewDoc(null)} />
       )}
     </div>
   );
