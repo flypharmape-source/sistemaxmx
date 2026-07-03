@@ -169,7 +169,6 @@ const getFerias = (ferias, id) => ferias[id] || { saldo: 30, movimentos: [] };
 const REGRAS = {
   folga:    { label: "Folga", sub: "não trabalha",        icon: Coffee,        cor: "#6C6E78", bg: "#EFEEE9" },
   normal:   { label: "Trabalha e recebe", sub: "hora normal", icon: DollarSign, cor: "#256B3B", bg: "#E3F2E6" },
-  dobro:    { label: "Recebe em dobro", sub: "trabalha",   icon: Coins,         cor: "#0F6577", bg: "#E2F0F3" },
   compensa: { label: "Compensa em outro dia", sub: "folga", icon: CalendarClock, cor: "#8A6410", bg: "#FBF1DA" },
 };
 const seedFeriados = [
@@ -179,7 +178,7 @@ const seedFeriados = [
   { id: "h4", data: "2026-11-20", nome: "Consciência Negra", abrangencia: "Nacional", uf: "" },
 ];
 const seedEscala = {
-  h2: { c1: "folga", c2: "normal", c3: "dobro", c4: "compensa" },
+  h2: { c1: "folga", c2: "normal", c3: "normal", c4: "compensa" },
 };
 const getRegra = (escala, feriadoId, colaboradorId) => (escala[feriadoId] || {})[colaboradorId] || "folga";
 
@@ -339,7 +338,7 @@ function StatusPill({ status }) {
 }
 
 /* ---------- Dashboard ---------- */
-function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, documentos = [], role = "admin", onNav = () => {}, onAbrir = () => {} }) {
+function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, documentos = [], feriados = [], role = "admin", onNav = () => {}, onAbrir = () => {} }) {
   const ativos = colaboradores.filter((c) => c.status === "ativo").length;
   const aniMes = colaboradores.filter((c) => mesDia(c.nascimento).slice(0, 2) === "07");
   const aniSemana = colaboradores.filter((c) => {
@@ -356,19 +355,17 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {}, do
   }).length;
   const proximasFerias = Object.values(ferias).reduce((n, r) => n + r.movimentos.filter((m) => m.data >= HOJE).length, 0);
   const lembretes = gerarLembretes({ colaboradores, ferias, notas, pagamentos, documentos });
-  const comemorativas = seedComemorativas.filter((d) => d.data >= HOJE).length;
+  const feriadosNac = feriados.filter((h) => h.abrangencia === "Nacional" && h.data >= HOJE).length;
 
   const cards = [
     { icon: Users, v: ativos, l: "Colaboradores ativos", c: "#5865F2", mod: "colaboradores" },
-    { icon: Cake, v: aniSemana.length, l: "Aniversariantes da semana", c: "#D85A30", mod: "colaboradores" },
     { icon: Gift, v: aniMes.length, l: "Aniversariantes do mês", c: "#D4537E", mod: "colaboradores" },
     { icon: Plane, v: proximasFerias, l: "Próximas férias", c: "#378ADD", mod: "ferias" },
     { icon: AlertTriangle, v: feriasVencendo, l: "Férias vencendo", c: "#BA7517", mod: "ferias" },
     { icon: Clock, v: pagPend, l: "Pagamentos pendentes", c: "#BA7517", mod: "financeiro" },
-    { icon: BadgeCheck, v: pagFeitos, l: "Pagamentos realizados", c: "#1D9E75", mod: "financeiro" },
     { icon: FileText, v: notasPend, l: "Notas fiscais pendentes", c: "#7F77DD", mod: "financeiro" },
     { icon: Megaphone, v: lembretes.length, l: "Avisos / lembretes", c: "#D85A30", mod: "lembretes" },
-    { icon: PartyPopper, v: comemorativas, l: "Datas comemorativas", c: "#D4537E", mod: "escala" },
+    { icon: CalendarDays, v: feriadosNac, l: "Feriados nacionais", c: "#378ADD", mod: "escala" },
   ];
 
   return (
@@ -1734,7 +1731,7 @@ export default function App() {
   }
 
   let conteudo;
-  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={visiveis} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} role={perfil.role} onNav={(m) => { if (NAV_PERM[m].includes(perfil.role)) { setModulo(m); setNovo(false); setDetalheId(null); } }} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
+  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={visiveis} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} feriados={feriados} role={perfil.role} onNav={(m) => { if (NAV_PERM[m].includes(perfil.role)) { setModulo(m); setNovo(false); setDetalheId(null); } }} onAbrir={(id) => { setModulo("colaboradores"); setDetalheId(id); }} />;
   else if (modulo === "colaboradores") {
     if (perfil.role === "colaborador") {
       const meu = colaboradores.find((c) => c.id === perfil.colaboradorId);
