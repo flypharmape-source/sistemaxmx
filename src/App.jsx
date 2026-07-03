@@ -118,6 +118,51 @@ const seedDocumentos = [
   { id: "d7", colaboradorId: "c3", categoria: "outros", nome: "CARTAO_CNPJ.pdf", enviadoEm: "2025-01-20", assinado: null },
 ];
 
+/* ---------- Férias: helpers, status e dados ---------- */
+const addAnos = (s, n) => { const [y, m, d] = s.split("-"); return `${Number(y) + n}-${m}-${d}`; };
+const anosCompletos = (adm) => {
+  if (!adm) return 0;
+  const [ay, am, ad] = adm.split("-").map(Number);
+  const [hy, hm, hd] = HOJE.split("-").map(Number);
+  let a = hy - ay;
+  if (hm < am || (hm === am && hd < ad)) a--;
+  return a;
+};
+const diasEntre = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+const STATUS_FERIAS = {
+  aquisicao:  { label: "Em período aquisitivo",        bg: "#EFEEE9", ink: "#6C6E78" },
+  dentro:     { label: "Dentro do prazo",              bg: "#E3F2E6", ink: "#256B3B" },
+  programar:  { label: "Período ideal para programar", bg: "#E2F0F3", ink: "#0F6577" },
+  vencimento: { label: "Próximo do vencimento",        bg: "#FBF1DA", ink: "#8A6410" },
+  vencidas:   { label: "Férias vencidas",              bg: "#FAE7E4", ink: "#A83226" },
+};
+
+function computeFerias(colaborador, rec) {
+  const anos = anosCompletos(colaborador.admissao);
+  const temDireito = anos >= 1;
+  const aqInicio = addAnos(colaborador.admissao, Math.max(anos - 1, 0));
+  const aqFim = addAnos(colaborador.admissao, Math.max(anos, 1));
+  const concLimite = addAnos(aqFim, 1);
+  const diasDireito = 30;
+  const saldo = rec.saldo;
+  const diasUtil = diasDireito - saldo;
+  const dLimite = diasEntre(HOJE, concLimite);
+  let status;
+  if (!temDireito) status = "aquisicao";
+  else if (saldo <= 0) status = "dentro";
+  else if (dLimite < 0) status = "vencidas";
+  else if (dLimite <= 90) status = "vencimento";
+  else status = "programar";
+  return { anos, temDireito, aqInicio, aqFim, concLimite, diasDireito, saldo, diasUtil, dLimite, status };
+}
+
+const seedFerias = {
+  c1: { saldo: 15, movimentos: [{ id: "fm1", data: "2025-07-15", dias: 15, obs: "Férias de julho", saldoApos: 15 }] },
+  c4: { saldo: 20, movimentos: [{ id: "fm2", data: "2026-01-10", dias: 10, obs: "Recesso de janeiro", saldoApos: 20 }] },
+};
+const getFerias = (ferias, id) => ferias[id] || { saldo: 30, movimentos: [] };
+
 /* ---------- UI base ---------- */
 function Card({ children, style }) {
   return <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, ...style }}>{children}</div>;
@@ -155,7 +200,7 @@ function StatusPill({ status }) {
 }
 
 /* ---------- Dashboard ---------- */
-function Dashboard({ colaboradores, pagamentos = [], notas = [] }) {
+function Dashboard({ colaboradores, pagamentos = [], notas = [], ferias = {} }) {
   const ativos = colaboradores.filter((c) => c.tipo === "colaborador" && c.status === "ativo").length;
   const prestadores = colaboradores.filter((c) => c.tipo === "prestador" && c.status === "ativo").length;
   const aniMes = colaboradores.filter((c) => mesDia(c.nascimento).slice(0, 2) === "07");
@@ -166,14 +211,20 @@ function Dashboard({ colaboradores, pagamentos = [], notas = [] }) {
   const pagPend = pagamentos.filter((p) => p.status === "pendente").length;
   const pagFeitos = pagamentos.filter((p) => p.status === "realizado").length;
   const notasPend = notas.filter((n) => n.status === "pendente").length;
+  const feriasVencendo = colaboradores.filter((c) => {
+    if (c.status !== "ativo") return false;
+    const s = computeFerias(c, getFerias(ferias, c.id)).status;
+    return s === "vencimento" || s === "vencidas";
+  }).length;
+  const proximasFerias = Object.values(ferias).reduce((n, r) => n + r.movimentos.filter((m) => m.data >= HOJE).length, 0);
 
   const cards = [
     { icon: Users, v: ativos, l: "Colaboradores ativos", c: "#5865F2" },
     { icon: Briefcase, v: prestadores, l: "Prestadores ativos", c: "#1D9E75" },
     { icon: Cake, v: aniSemana.length, l: "Aniversariantes da semana", c: "#D85A30" },
     { icon: Gift, v: aniMes.length, l: "Aniversariantes do mês", c: "#D4537E" },
-    { icon: Plane, v: 15, l: "Próximas férias", c: "#378ADD" },
-    { icon: AlertTriangle, v: 8, l: "Férias vencendo", c: "#BA7517" },
+    { icon: Plane, v: proximasFerias, l: "Próximas férias", c: "#378ADD" },
+    { icon: AlertTriangle, v: feriasVencendo, l: "Férias vencendo", c: "#BA7517" },
     { icon: Clock, v: pagPend, l: "Pagamentos pendentes", c: "#BA7517" },
     { icon: BadgeCheck, v: pagFeitos, l: "Pagamentos realizados", c: "#1D9E75" },
     { icon: FileText, v: notasPend, l: "Notas fiscais pendentes", c: "#7F77DD" },
@@ -416,7 +467,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
 }
 
 /* ---------- Ficha do colaborador (Histórico + Dados + Documentos) ---------- */
-function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onVoltar }) {
+function Ficha({ colaborador: c, eventos, documentos, ferias, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
@@ -475,6 +526,7 @@ function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onU
 
       <div style={{ display: "flex", gap: 22, borderBottom: `1px solid ${C.border}`, marginBottom: 18 }}>
         <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
+        <TabBtn id="ferias" label={`Férias (${ferias.saldo})`} />
         <TabBtn id="documentos" label={`Documentos (${documentos.length})`} />
         <TabBtn id="dados" label="Dados" />
       </div>
@@ -522,6 +574,8 @@ function Ficha({ colaborador: c, eventos, documentos, onSalvar, onAddEvento, onU
             })}
           </Card>
         </>
+      ) : tab === "ferias" ? (
+        <FeriasTab colaborador={c} ferias={ferias} onProgramar={onProgramarFerias} />
       ) : tab === "documentos" ? (
         <DocumentosTab colaborador={c} documentos={documentos} onUpload={onUploadDoc} onAssinar={onAssinarDoc} onVer={onVerDoc} />
       ) : (
@@ -868,6 +922,122 @@ function DocumentosGlobal({ colaboradores, documentos, onVer }) {
   );
 }
 
+/* ---------- Aba Férias (dentro da ficha) ---------- */
+function FeriasTab({ colaborador, ferias, onProgramar }) {
+  const [prog, setProg] = useState(false);
+  const [pf, setPf] = useState({ dias: "", dataInicio: HOJE, obs: "" });
+  const info = computeFerias(colaborador, ferias);
+  const st = STATUS_FERIAS[info.status];
+  const podeProgramar = pf.dias && Number(pf.dias) > 0 && Number(pf.dias) <= info.saldo && pf.dataInicio;
+
+  const Mini = ({ label, value, cor }) => (
+    <Card style={{ padding: "12px 16px", flex: "1 1 120px" }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, fontFamily: MONO, color: cor || C.ink }}>{value}</div>
+    </Card>
+  );
+  const linhaTab = (data, mov, dias, saldo, primeira) => (
+    <div style={{ display: "flex", padding: "9px 0", borderTop: primeira ? "none" : `1px solid ${C.border}`, fontSize: 13 }}>
+      <span style={{ flex: "0 0 100px", color: C.muted, fontFamily: MONO }}>{data}</span>
+      <span style={{ flex: 1 }}>{mov}</span>
+      <span style={{ flex: "0 0 70px", textAlign: "right", fontFamily: MONO, color: dias < 0 ? C.desligInk : C.muted }}>{dias === 0 ? "—" : dias > 0 ? `+${dias}` : dias}</span>
+      <span style={{ flex: "0 0 70px", textAlign: "right", fontFamily: MONO, fontWeight: 500 }}>{saldo}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ background: st.bg, color: st.ink, fontSize: 12.5, fontWeight: 500, padding: "4px 12px", borderRadius: 999 }}>{st.label}</span>
+        <span style={{ marginLeft: "auto" }}>
+          <Btn variant="ghost" onClick={() => setProg(!prog)}><Plus size={15} /> Programar férias</Btn>
+        </span>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <Mini label="Dias de direito" value={info.diasDireito} />
+        <Mini label="Dias utilizados" value={info.diasUtil} />
+        <Mini label="Saldo disponível" value={info.saldo} cor={info.saldo > 0 ? "#256B3B" : C.muted} />
+      </div>
+
+      <Card style={{ padding: 18, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Informações automáticas</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 20px", fontSize: 13 }} className="g2">
+          <div><span style={{ color: C.muted }}>Período aquisitivo: </span>{dmy(info.aqInicio)} a {dmy(info.aqFim)}</div>
+          <div><span style={{ color: C.muted }}>Data limite para concessão: </span>{dmy(info.concLimite)}</div>
+          <div><span style={{ color: C.muted }}>Dias disponíveis: </span>{info.saldo}</div>
+          <div><span style={{ color: C.muted }}>Vence em: </span>{info.dLimite < 0 ? "vencido" : `${info.dLimite} dias`}</div>
+        </div>
+      </Card>
+
+      {prog && (
+        <Card style={{ padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Programar férias</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="g2">
+            <Field label={`Dias (saldo: ${info.saldo})`}><input className="inp" type="number" min="1" max={info.saldo} value={pf.dias} onChange={(e) => setPf({ ...pf, dias: e.target.value })} /></Field>
+            <Field label="Início"><input className="inp" type="date" value={pf.dataInicio} onChange={(e) => setPf({ ...pf, dataInicio: e.target.value })} /></Field>
+            <Field label="Observação" span><input className="inp" value={pf.obs} onChange={(e) => setPf({ ...pf, obs: e.target.value })} placeholder="Ex: férias de fim de ano" /></Field>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Btn disabled={!podeProgramar} onClick={() => { onProgramar(colaborador.id, { dias: Number(pf.dias), dataInicio: pf.dataInicio, obs: pf.obs }); setPf({ dias: "", dataInicio: HOJE, obs: "" }); setProg(false); }}>Confirmar</Btn>
+          </div>
+        </Card>
+      )}
+
+      <Card style={{ padding: 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Controle do saldo</div>
+        <div style={{ display: "flex", padding: "4px 0", fontSize: 11.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4 }}>
+          <span style={{ flex: "0 0 100px" }}>Data</span><span style={{ flex: 1 }}>Movimento</span>
+          <span style={{ flex: "0 0 70px", textAlign: "right" }}>Dias</span><span style={{ flex: "0 0 70px", textAlign: "right" }}>Saldo</span>
+        </div>
+        {linhaTab("—", "Saldo inicial", 30, 30, true)}
+        {[...ferias.movimentos].sort((a, b) => a.data.localeCompare(b.data)).map((m) => linhaTab(dmy(m.data), m.obs || "Férias", -m.dias, m.saldoApos, false))}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Férias (visão geral no menu) ---------- */
+function FeriasGlobal({ colaboradores, ferias, onAbrir }) {
+  const ativos = colaboradores.filter((c) => c.status === "ativo");
+  const linhas = ativos.map((c) => ({ c, info: computeFerias(c, getFerias(ferias, c.id)) }))
+    .sort((a, b) => a.info.dLimite - b.info.dLimite);
+  const alertas = linhas.filter((l) => l.info.status === "vencidas" || l.info.status === "vencimento");
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>Controle de férias</h1>
+      <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 16px" }}>Período aquisitivo, saldo e vencimentos — aplicado a todos, inclusive PJ.</p>
+
+      {alertas.length > 0 && (
+        <Card style={{ padding: "12px 16px", marginBottom: 16, background: "#FBF1DA", borderColor: "#EAD9A8", display: "flex", alignItems: "center", gap: 10 }}>
+          <AlertTriangle size={16} color="#8A6410" />
+          <span style={{ fontSize: 13.5, color: "#8A6410" }}>{alertas.length} colaborador(es) com férias vencendo ou vencidas.</span>
+        </Card>
+      )}
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {linhas.map(({ c, info }) => {
+          const st = STATUS_FERIAS[info.status];
+          return (
+            <Card key={c.id} className="row" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", flexWrap: "wrap" }} >
+              <div onClick={() => onAbrir(c)} style={{ display: "flex", alignItems: "center", gap: 14, flex: "1 1 220px", minWidth: 0 }}>
+                <Avatar nome={c.nome} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 500 }}>{c.nome}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted }}>{c.setor}{c.tipo === "prestador" ? " · PJ" : ""} · limite {dmy(info.concLimite)}</div>
+                </div>
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 13.5 }}>{info.saldo} dias</div>
+              <span style={{ background: st.bg, color: st.ink, fontSize: 12, fontWeight: 500, padding: "3px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>{st.label}</span>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -896,6 +1066,16 @@ export default function App() {
   const [viewNota, setViewNota] = useState(null);
   const [documentos, setDocumentos] = useState(seedDocumentos);
   const [viewDoc, setViewDoc] = useState(null);
+  const [ferias, setFerias] = useState(seedFerias);
+
+  function programarFerias(colaboradorId, { dias, dataInicio, obs }) {
+    setFerias((f) => {
+      const rec = f[colaboradorId] || { saldo: 30, movimentos: [] };
+      const saldoApos = rec.saldo - dias;
+      return { ...f, [colaboradorId]: { saldo: saldoApos, movimentos: [...rec.movimentos, { id: "fm" + Date.now(), data: dataInicio, dias, obs, saldoApos }] } };
+    });
+    setEventos((es) => [mkEvento(colaboradorId, "ferias", dataInicio, `Férias programadas (${dias} dias)`), ...es]);
+  }
 
   function addDocumento(colaboradorId, categoria, nome) {
     const assinado = CATEGORIAS[categoria]?.assinavel ? false : null;
@@ -969,14 +1149,14 @@ export default function App() {
   const detalhe = detalheId ? colaboradores.find((c) => c.id === detalheId) : null;
 
   let conteudo;
-  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} />;
+  if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} ferias={ferias} />;
   else if (modulo === "colaboradores") {
     if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
-    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onVoltar={() => setDetalheId(null)} />;
+    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} ferias={getFerias(ferias, detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onProgramarFerias={programarFerias} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
-  else if (modulo === "ferias") conteudo = <EmBreve titulo="Controle de férias" fase="Fase 3" />;
+  else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={colaboradores} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
   else if (modulo === "escala") conteudo = <EmBreve titulo="Feriados & Escala" fase="Fase 3" />;
   else conteudo = <EmBreve titulo="Configurações" fase="Fase 1" />;
