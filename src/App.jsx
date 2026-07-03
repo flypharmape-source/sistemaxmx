@@ -5,7 +5,7 @@ import {
   PartyPopper, ArrowLeft, Briefcase, UserCheck, AlertTriangle,
   LogIn, LogOut, TrendingUp, Award, ArrowRightLeft,
   FileSignature, FileCheck, Paperclip, Star, Eye, UserX, RotateCcw,
-  Coffee, DollarSign, Coins, CalendarClock, CalendarPlus, Bell,
+  Coffee, DollarSign, Coins, CalendarClock, CalendarPlus, Bell, Check,
 } from "lucide-react";
 
 /* ---------- tokens ---------- */
@@ -181,6 +181,28 @@ const seedEscala = {
   h2: { c1: "folga", c2: "normal", c3: "dobro", c4: "compensa" },
 };
 const getRegra = (escala, feriadoId, colaboradorId) => (escala[feriadoId] || {})[colaboradorId] || "folga";
+
+/* ---------- Checklists: templates e dados ---------- */
+const CHECKLIST_ADMISSAO = [
+  { id: "a1", label: "Contrato de admissão assinado" },
+  { id: "a2", label: "Dados bancários cadastrados" },
+  { id: "a3", label: "Documentos pessoais enviados" },
+  { id: "a4", label: "Acesso ao Discord criado" },
+  { id: "a5", label: "Equipamentos entregues" },
+  { id: "a6", label: "Treinamento inicial realizado" },
+];
+const CHECKLIST_DESLIGAMENTO = [
+  { id: "x1", label: "Aviso / rescisão processado" },
+  { id: "x2", label: "Acessos revogados" },
+  { id: "x3", label: "Equipamentos devolvidos" },
+  { id: "x4", label: "Documentos de rescisão enviados" },
+  { id: "x5", label: "Pagamentos finais quitados" },
+];
+const seedChecklists = {
+  c1: { admissao: { a1: true, a2: true, a3: true, a4: true, a5: true, a6: false }, desligamento: {} },
+  c5: { admissao: { a1: true, a2: true, a3: true, a4: true, a5: true, a6: true }, desligamento: { x1: true, x2: true, x3: false, x4: true, x5: false } },
+};
+const getChecks = (checklists, id) => checklists[id] || { admissao: {}, desligamento: {} };
 
 /* ---------- Lembretes automáticos: motor ---------- */
 const seedComemorativas = [
@@ -548,7 +570,7 @@ function Cadastro({ inicial, onSalvar, onVoltar, embed }) {
 }
 
 /* ---------- Ficha do colaborador (Histórico + Dados + Documentos) ---------- */
-function Ficha({ colaborador: c, eventos, documentos, ferias, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onVoltar }) {
+function Ficha({ colaborador: c, eventos, documentos, ferias, checks, onSalvar, onAddEvento, onUploadDoc, onAssinarDoc, onVerDoc, onDesligar, onReativar, onProgramarFerias, onToggleCheck, onVoltar }) {
   const [tab, setTab] = useState("historico");
   const [add, setAdd] = useState(false);
   const [ev, setEv] = useState({ tipo: "advertencia", data: HOJE, descricao: "" });
@@ -609,6 +631,7 @@ function Ficha({ colaborador: c, eventos, documentos, ferias, onSalvar, onAddEve
         <TabBtn id="historico" label={`Histórico (${eventos.length})`} />
         <TabBtn id="ferias" label={`Férias (${ferias.saldo})`} />
         <TabBtn id="documentos" label={`Documentos (${documentos.length})`} />
+        <TabBtn id="checklists" label="Checklists" />
         <TabBtn id="dados" label="Dados" />
       </div>
 
@@ -659,6 +682,8 @@ function Ficha({ colaborador: c, eventos, documentos, ferias, onSalvar, onAddEve
         <FeriasTab colaborador={c} ferias={ferias} onProgramar={onProgramarFerias} />
       ) : tab === "documentos" ? (
         <DocumentosTab colaborador={c} documentos={documentos} onUpload={onUploadDoc} onAssinar={onAssinarDoc} onVer={onVerDoc} />
+      ) : tab === "checklists" ? (
+        <ChecklistsTab colaborador={c} checks={checks} onToggle={onToggleCheck} />
       ) : (
         <Cadastro inicial={c} embed onSalvar={(d) => { onSalvar(d); setTab("historico"); }} onVoltar={() => setTab("historico")} />
       )}
@@ -1241,6 +1266,46 @@ function Lembretes({ lembretes, onAbrir }) {
   );
 }
 
+/* ---------- Aba Checklists (dentro da ficha) ---------- */
+function ChecklistsTab({ colaborador, checks, onToggle }) {
+  const Secao = ({ tipo, titulo, itens, cor }) => {
+    const state = checks[tipo] || {};
+    const feitos = itens.filter((i) => state[i.id]).length;
+    const pct = Math.round((feitos / itens.length) * 100);
+    return (
+      <Card style={{ padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>{titulo}</span>
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: C.muted, fontFamily: MONO }}>{feitos}/{itens.length}</span>
+        </div>
+        <div style={{ height: 6, background: "#EEEDE7", borderRadius: 99, overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: cor, borderRadius: 99, transition: "width .2s" }} />
+        </div>
+        <div style={{ display: "grid", gap: 2 }}>
+          {itens.map((i) => {
+            const on = !!state[i.id];
+            return (
+              <button key={i.id} className="btn" onClick={() => onToggle(colaborador.id, tipo, i.id)}
+                style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: "7px 0", textAlign: "left", fontFamily: SANS }}>
+                <span style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${on ? cor : C.borderStrong}`, background: on ? cor : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {on && <Check size={13} color="#fff" strokeWidth={3} />}
+                </span>
+                <span style={{ fontSize: 13.5, color: on ? C.faint : C.ink, textDecoration: on ? "line-through" : "none" }}>{i.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+    );
+  };
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <Secao tipo="admissao" titulo="Checklist de admissão" itens={CHECKLIST_ADMISSAO} cor="#256B3B" />
+      <Secao tipo="desligamento" titulo="Checklist de desligamento" itens={CHECKLIST_DESLIGAMENTO} cor="#A83226" />
+    </div>
+  );
+}
+
 /* ---------- Placeholder de módulos das próximas fases ---------- */
 function EmBreve({ titulo, fase, feito }) {
   return (
@@ -1272,6 +1337,15 @@ export default function App() {
   const [ferias, setFerias] = useState(seedFerias);
   const [feriados, setFeriados] = useState(seedFeriados);
   const [escala, setEscala] = useState(seedEscala);
+  const [checklists, setChecklists] = useState(seedChecklists);
+
+  function toggleCheck(colaboradorId, tipo, itemId) {
+    setChecklists((cl) => {
+      const rec = cl[colaboradorId] || { admissao: {}, desligamento: {} };
+      const bloco = { ...(rec[tipo] || {}), [itemId]: !(rec[tipo] || {})[itemId] };
+      return { ...cl, [colaboradorId]: { ...rec, [tipo]: bloco } };
+    });
+  }
 
   function novoFeriado(dados) {
     const id = "h" + Date.now();
@@ -1367,7 +1441,7 @@ export default function App() {
   if (modulo === "dashboard") conteudo = <Dashboard colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} ferias={ferias} documentos={documentos} />;
   else if (modulo === "colaboradores") {
     if (novo) conteudo = <Cadastro inicial={null} onSalvar={criar} onVoltar={() => setNovo(false)} />;
-    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} ferias={getFerias(ferias, detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onProgramarFerias={programarFerias} onVoltar={() => setDetalheId(null)} />;
+    else if (detalhe) conteudo = <Ficha colaborador={detalhe} eventos={eventos.filter((e) => e.colaboradorId === detalhe.id)} documentos={documentos.filter((d) => d.colaboradorId === detalhe.id)} ferias={getFerias(ferias, detalhe.id)} checks={getChecks(checklists, detalhe.id)} onSalvar={editar} onAddEvento={addEvento} onUploadDoc={addDocumento} onAssinarDoc={assinarDoc} onVerDoc={setViewDoc} onDesligar={desligar} onReativar={reativar} onProgramarFerias={programarFerias} onToggleCheck={toggleCheck} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={colaboradores} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
   else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
