@@ -38,6 +38,7 @@ export default function App() {
   const [feriados, setFeriados] = useState(seedFeriados);
   const [escala, setEscala] = useState(seedEscala);
   const [checklists, setChecklists] = useState(seedChecklists);
+  const [competenciaAberta, setCompetenciaAberta] = useState("2026-07");
   const [usuario, setUsuario] = useState(null);
   const [contas, setContas] = useState(seedContas);
 
@@ -94,6 +95,17 @@ export default function App() {
   }
   function notaStatus(id, status) {
     setNotas((ns) => ns.map((n) => (n.id === id ? { ...n, status } : n)));
+  }
+  function enviarNota(colaboradorId, dados) {
+    const c = colaboradores.find((x) => x.id === colaboradorId) || {};
+    setNotas((ns) => [{
+      id: "nf" + Date.now(), colaboradorId, setor: c.setor || "", numero: dados.numero || "s/nº",
+      competencia: dados.competencia, valor: dados.valor, descricao: dados.descricao || "",
+      arquivo: dados.arquivo || "nota.pdf", status: "pendente", enviadaEm: HOJE,
+    }, ...ns]);
+  }
+  function reenviarNota(id) {
+    setNotas((ns) => ns.map((n) => (n.id === id ? { ...n, status: "pendente", enviadaEm: HOJE } : n)));
   }
 
   const mkEvento = (colaboradorId, tipo, data, descricao) =>
@@ -164,7 +176,8 @@ export default function App() {
 
   function fichaProps(c) {
     const verSensivel = podeVerSensivel(perfil.role) || (perfil.role === "colaborador" && c.id === perfil.colaboradorId);
-    return { colaborador: c, eventos: eventos.filter((e) => e.colaboradorId === c.id), documentos: documentos.filter((d) => d.colaboradorId === c.id), ferias: getFerias(ferias, c.id), checks: getChecks(checklists, c.id), podeEditar, verSensivel, onSalvar: editar, onAddEvento: addEvento, onUploadDoc: addDocumento, onAssinarDoc: assinarDoc, onVerDoc: setViewDoc, onDesligar: desligar, onReativar: reativar, onProgramarFerias: programarFerias, onToggleCheck: toggleCheck };
+    const podeEnviarNota = (perfil.role === "colaborador" && c.id === perfil.colaboradorId) || ["admin", "financeiro"].includes(perfil.role);
+    return { colaborador: c, eventos: eventos.filter((e) => e.colaboradorId === c.id), documentos: documentos.filter((d) => d.colaboradorId === c.id), ferias: getFerias(ferias, c.id), checks: getChecks(checklists, c.id), notas: notas.filter((n) => n.colaboradorId === c.id), competenciaAberta, podeEnviarNota, podeEditar, verSensivel, onSalvar: editar, onAddEvento: addEvento, onUploadDoc: addDocumento, onAssinarDoc: assinarDoc, onVerDoc: setViewDoc, onDesligar: desligar, onReativar: reativar, onProgramarFerias: programarFerias, onToggleCheck: toggleCheck, onEnviarNota: enviarNota, onReenviarNota: reenviarNota, onVerNota: setViewNota };
   }
 
   let conteudo;
@@ -177,7 +190,7 @@ export default function App() {
     else if (detalhe) conteudo = <Ficha {...fichaProps(detalhe)} onVoltar={() => setDetalheId(null)} />;
     else conteudo = <Lista colaboradores={visiveis} mostrarSalario={mostrarSalario} podeNovo={podeEditar} onNovo={() => setNovo(true)} onAbrir={(c) => setDetalheId(c.id)} />;
   }
-  else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
+  else if (modulo === "financeiro") conteudo = <Financeiro colaboradores={colaboradores} pagamentos={pagamentos} notas={notas} competenciaAberta={competenciaAberta} onAbrirCompetencia={setCompetenciaAberta} onRegistrar={registrarPagamento} onNovoPagamento={novoPagamento} onNotaStatus={notaStatus} onVerNota={setViewNota} />;
   else if (modulo === "ferias") conteudo = <FeriasGlobal colaboradores={visiveis} ferias={ferias} onAbrir={(c) => { setModulo("colaboradores"); setDetalheId(c.id); }} />;
   else if (modulo === "documentos") conteudo = <DocumentosGlobal colaboradores={colaboradores} documentos={documentos} onVer={setViewDoc} />;
   else if (modulo === "escala") conteudo = <FeriadosEscala colaboradores={visiveis} feriados={feriados} escala={escala} onNovoFeriado={novoFeriado} onSetRegra={setRegra} verSalario={mostrarSalario} />;
